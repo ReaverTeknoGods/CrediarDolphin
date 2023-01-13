@@ -24,6 +24,7 @@
 #include "Core/HW/SI/SI_DeviceGCSteeringWheel.h"
 #include "Core/HW/SI/SI_DeviceKeyboard.h"
 #include "Core/HW/SI/SI_DeviceNull.h"
+#include "Core/HW/SI/SI_DeviceAMBaseboard.h"
 #include "Core/HW/SystemTimers.h"
 
 namespace SerialInterface
@@ -203,6 +204,8 @@ std::unique_ptr<ISIDevice> SIDevice_Create(const SIDevices device, const int por
     return std::make_unique<CSIDevice_Keyboard>(device, port_number);
 
   case SIDEVICE_AM_BASEBOARD:
+    return std::make_unique<CSIDevice_AMBaseboard>(device, port_number);
+
   case SIDEVICE_NONE:
   default:
     return std::make_unique<CSIDevice_Null>(device, port_number);

@@ -51,6 +51,7 @@ void ScheduleEvent(int device_number, s64 cycles_into_future, u64 userdata = 0);
 void RemoveEvent(int device_number);
 
 void UpdateDevices();
+u32 GetInLength(void);
 
 void RemoveDevice(int device_number);
 void AddDevice(SIDevices device, int device_number);

@@ -39,6 +39,7 @@ static constexpr std::array s_gc_types = {
 #ifdef HAS_LIBMGBA
     SIDeviceName{SerialInterface::SIDEVICE_GC_GBA_EMULATED, _trans("GBA (Integrated)")},
 #endif
+    SIDeviceName{SerialInterface::SIDEVICE_AM_BASEBOARD, _trans("AM_BASEBOARD")},
     SIDeviceName{SerialInterface::SIDEVICE_GC_GBA, _trans("GBA (TCP)")},
     SIDeviceName{SerialInterface::SIDEVICE_GC_KEYBOARD, _trans("Keyboard Controller")},
 };

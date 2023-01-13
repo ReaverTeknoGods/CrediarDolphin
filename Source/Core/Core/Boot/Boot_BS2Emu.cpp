@@ -302,7 +302,11 @@ bool CBoot::EmulatedBS2_GC(Core::System& system, const DiscIO::VolumeDisc& volum
   // Global pointer to Small Data Area Base (Luigi's Mansion's apploader uses it)
   PowerPC::ppcState.gpr[13] = ntsc ? 0x81465320 : 0x814b4fc0;
 
-  return RunApploader(/*is_wii*/ false, volume, riivolution_patches);
+  bool ret =  RunApploader(/*is_wii*/ false, volume, riivolution_patches);
+
+  DVDInterface::InitKeys( memory.Read_U32(0x00000000), memory.Read_U32(0x00000004) , memory.Read_U32(0x00000008) );
+
+  return ret;
 }
 
 static DiscIO::Region CodeRegion(char c)
