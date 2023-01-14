@@ -975,6 +975,8 @@ static void RebuildUserDirectories(unsigned int dir_index)
     s_user_paths[D_GBASAVES_IDX] = s_user_paths[D_GBAUSER_IDX] + GBASAVES_DIR DIR_SEP;
     s_user_paths[F_GBABIOS_IDX] = s_user_paths[D_GBAUSER_IDX] + GBA_BIOS;
 
+    s_user_paths[D_TRIUSER_IDX] = s_user_paths[D_USER_IDX] + TRIFORCE_USER_DIR DIR_SEP;
+
     // The shader cache has moved to the cache directory, so remove the old one.
     // TODO: remove that someday.
     File::DeleteDirRecursively(s_user_paths[D_USER_IDX] + SHADERCACHE_LEGACY_DIR DIR_SEP);

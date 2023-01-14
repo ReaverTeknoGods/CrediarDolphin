@@ -168,38 +168,45 @@ static inline void PrintMBBuffer( u32 Address, u32 Length )
 
 void Init( void )
 {
-	u64 gameid = 0;
+	u32 gameid = 0;
 	memset( media_buffer, 0, sizeof(media_buffer) );
 	memset( network_buffer, 0, sizeof(network_buffer) );
 	memset( network_command_buffer, 0, sizeof(network_command_buffer) );
 	memset( firmware, -1, sizeof(firmware) );
 	
-	//Convert game ID into hex 
+	// Convert game ID into hex 
   sscanf(SConfig::GetInstance().GetGameID().c_str(), "%s", (char*) & gameid);
 
 	// This is checking for the real game IDs (not those people made up) (See boot.id within the game)
-	switch(gameid)
+  switch(Common::swap32(gameid))
 	{
-		// SBKJ6W/P8JZFG - F-ZERO AX
-    case 0x573645474253:
-    case 0x50384a5a4647:
+		// SBHA/SBGG - F-ZERO AX
+    case 0x53424841: // ALL
+    case 0x53424747: // G?
 			m_controllertype = 1;
 			break;
-		// SBLJ - VIRTUA STRIKER 4 Ver.2006
-		case 0x53424C4A:
+		// SBLJ/SBLK - VIRTUA STRIKER 4 Ver.2006
+    case 0x53424C4A:  // JAP
+    case 0x53424C4B:  // K?
 		// SBHJ - VIRTUA STRIKER 4 VER.A
 		case 0x5342484A:	
-		// SBJJ - VIRTUA STRIKER 4
-		case 0x53424A4A:	
-		// SBEJ - Virtua Striker 2002
-		case 0x5342454A:
-    case 0x57364a454253:
+		// SBJA/SBJJ  - VIRTUA STRIKER 4
+    case 0x53424A41: // ALL
+    case 0x53424A4A: // JAP
+		// SBEJ/SBEY - Virtua Striker 2002
+    case 0x5342454A:  // JAP
+    case 0x53424559:  // Y?
 			m_controllertype = 2;
 			break;
-		// SBKJ - MARIOKART ARCADE GP
-    case 0x000057364a4b4253:
-		// SBNJ - MARIOKART ARCADE GP2
-		case 0x53424E4A:		
+		// SBKJ/SBKP - MARIOKART ARCADE GP
+    case 0x53424B50:  // PAL
+    case 0x53424B5A:  // JAP
+		// SBNJ/SBNL - MARIOKART ARCADE GP2
+    case 0x53424E4A:  // JAP
+    case 0x53424E4C:  // L?
+    // GSBJ/G12U - SegaBoot
+    case 0x4753424A:
+    case 0x47313255:
 			m_controllertype = 3;
 			break;
 		default:
