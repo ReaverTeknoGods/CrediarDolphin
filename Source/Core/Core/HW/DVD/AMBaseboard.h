@@ -19,11 +19,21 @@ namespace File
 {
 class IOFile;
 }
- 
+
+namespace DVDInterface
+{
+class DVDInterfaceState;
+struct Data;
+}
+
 namespace AMBaseboard
 {
-	void	Init( void );
-  u32   ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_type);
+
+  void  Init(void);
+  void  FirmwareMap(bool on);
+  u8*   InitDIMM(void);
+  void  InitKeys(u32 KeyA, u32 KeyB, u32 KeyC);
+  u32   ExecuteCommand( u32 *DICMDBUF, u32 Address, u32 Length );
 	u32		GetControllerType( void );
 	void	Shutdown( void );
 };

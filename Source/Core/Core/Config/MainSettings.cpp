@@ -590,6 +590,17 @@ const char* GetDirectoryForRegion(DiscIO::Region region, RegionDirectoryStyle st
 
 std::string GetBootROMPath(const std::string& region_directory)
 {
+  // Load Triforce IPL but only when using Triforce
+  const ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SERIAL_PORT_1);
+  if (Type == ExpansionInterface::EXIDeviceType::AMBaseboard)
+  {
+    const std::string path =
+        File::GetUserPath(D_GCUSER_IDX) + DIR_SEP + region_directory + DIR_SEP GC_TRI_IPL;
+    if (!File::Exists(path))
+      return File::GetSysDirectory() + GC_SYS_DIR + DIR_SEP + region_directory + DIR_SEP GC_TRI_IPL;
+    return path;
+  }
+
   const std::string path =
       File::GetUserPath(D_GCUSER_IDX) + DIR_SEP + region_directory + DIR_SEP GC_IPL;
   if (!File::Exists(path))

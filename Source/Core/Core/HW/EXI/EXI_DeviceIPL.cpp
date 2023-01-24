@@ -44,6 +44,10 @@ static const char iplverPAL[0x100] = "(C) 1999-2001 Nintendo.  All rights reserv
 static const char iplverNTSC[0x100] = "(C) 1999-2001 Nintendo.  All rights reserved."
                                       "(C) 1999 ArtX Inc.  All rights reserved.";
 
+static const char iplverTriforce[0x100] = "(C) 1999-2001 Nintendo.  All rights reserved."
+                                          "(C) 1999 ArtX Inc.  All rights reserved."
+                                          "DEV Revision 1.0 ";
+
 Common::Flags<RTCFlag> g_rtc_flags;
 
 // bootrom descrambler reversed by segher
@@ -175,6 +179,15 @@ bool CEXIIPL::LoadFileToIPL(const std::string& filename, u32 offset)
 std::string CEXIIPL::FindIPLDump(const std::string& path_prefix)
 {
   std::string ipl_dump_path;
+
+  //Load Triforce IPL but only when using Triforce
+  const ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SERIAL_PORT_1); 
+  if( Type == ExpansionInterface::EXIDeviceType::AMBaseboard )
+  {
+    if (File::Exists(path_prefix + DIR_SEP + JAP_DIR + DIR_SEP + GC_TRI_IPL))
+      ipl_dump_path = path_prefix + DIR_SEP + JAP_DIR + DIR_SEP + GC_TRI_IPL;
+    return ipl_dump_path;
+  }
 
   if (File::Exists(path_prefix + DIR_SEP + USA_DIR + DIR_SEP + GC_IPL))
     ipl_dump_path = path_prefix + DIR_SEP + USA_DIR + DIR_SEP + GC_IPL;

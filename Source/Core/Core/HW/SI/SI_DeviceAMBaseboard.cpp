@@ -28,10 +28,12 @@
 #include "Core/ConfigLoaders/NetPlayConfigLoader.h"
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
-#include "Core/AMBaseboard.h"
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/SI/SI.h"
 #include "Core/HW/SI/SI_Device.h"
+#include "Core/HW/SI/SI_DeviceAMBaseboard.h" 
+#include "Core/HW/SI/SI_DeviceGCController.h"  
+#include "Core/HW/DVD/AMBaseboard.h"
 #include "Core/HW/MMIO.h"
 #include "Core/HW/Memmap.h"
 #include "Core/HW/Sram.h"
@@ -45,8 +47,6 @@
 
 #include "DiscIO/Enums.h"
 
-#include "Core/HW/SI/SI_DeviceAMBaseboard.h" 
-#include "Core/HW/SI/SI_DeviceGCController.h"  
 
 // where to put baseboard debug
 #define AMBASEBOARDDEBUG SERIALINTERFACE
@@ -157,7 +157,7 @@ CSIDevice_AMBaseboard::CSIDevice_AMBaseboard(SIDevices device, int device_number
   sscanf(SConfig::GetInstance().GetGameID().c_str(), "%s", (char*)&gameid);
  
   // This is checking for the real game IDs (not those people made up) (See boot.id within the game)
-  if (gameid == 0x573645474253 || gameid == 0x50384a5a4647)  // F-Zero AX
+  if (Common::swap32(gameid) == 0x53424841 || Common::swap32(gameid) == 0x53424747)  // F-Zero AX
   {
     m_tri_game = 1;
   }
@@ -175,10 +175,6 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 { 
   // Math inLength
   int _iLength = SerialInterface::GetInLength();
-  //if (_iLength == 0)
-  //  _iLength = 128;
-  //else
-  //  _iLength++;
 
 	// for debug logging only
 	ISIDevice::RunBuffer(_pBuffer, _iLength);
@@ -194,7 +190,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 		switch(command)
 		{
 		case CMD_RESET: // returns ID and dip switches
-    {
+      {
         u32 id = Common::swap32(SI_AM_BASEBOARD | 0x100);
         std::memcpy(_pBuffer, &id, sizeof(id));
         return sizeof(id); 
@@ -213,7 +209,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
         int real_len = _pBuffer[iPosition];
 				int p = 2;
 
-				static int d10_1 = 0xfe;
+				static int d10_1 = 0xFE;
+        static int d10_0 = 0xFF;
 
 				memset(res, 0, 0x80);
 				res[resp++] = 1;
@@ -231,7 +228,6 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
             PadStatus = Pad::GetStatus( ISIDevice::m_device_number );
 						res[resp++] = 0x10;
 						res[resp++] = 0x2;
-						int d10_0 = 0xFF;
 
 						/*baseboard test/service switches ???, disabled for a while
 						if (PadStatus.button & PAD_BUTTON_Y)	// Test
@@ -239,6 +235,10 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 						if (PadStatus.button & PAD_BUTTON_X)	// Service
 							d10_0 &= ~0x40;
 						*/
+
+            // Horizontal Scanning Frequency switch
+            // Required for F-Zero AX booting via Sega Boot
+            d10_0 &= ~0x20;
 
 						res[resp++] = d10_0;
 						res[resp++] = d10_1;
@@ -253,30 +253,38 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 						memcpy(res + resp, string, 0x10);
 						resp += 0x10;
 						break;
-					}
-					case 0x12:
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 12, {:02x} {:02x}", ptr(1), ptr(2));
-						res[resp++] = 0x12;
-						res[resp++] = 0x00;
-						break;
-					case 0x15:
+          }
+          case 0x12:
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 12, {:02x} {:02x}", ptr(1), ptr(2));
+            res[resp++] = 0x12;
+            res[resp++] = 0x00;
+            break;
+          case 0x14:
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 14, {:02x} {:02x}", ptr(1), ptr(2));
+            res[resp++] = 0x14;
+            res[resp++] = 0x00;
+            break;
+					case 0x15: 
 						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 15, {:02x} (READ FIRM VERSION)", ptr(1));
 						res[resp++] = 0x15;
-						res[resp++] = 0x02;
-						 // FIRM VERSION
-						res[resp++] = 0x00;
-						res[resp++] = 0x26;
+            res[resp++] = 0x02;
+            // FIRM VERSION
+            // 00.26
+            res[resp++] = 0x00;
+            res[resp++] = 0x26;
 						break;
 					case 0x16:
 						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 16, {:02x} (READ FPGA VERSION)", ptr(1));
 						res[resp++] = 0x16;
-						res[resp++] = 0x02;
-						 // FPGAVERSION
-						res[resp++] = 0x07;
-						res[resp++] = 0x06;
+            res[resp++] = 0x02;
+            // FPGA VERSION
+            // 07.06
+            res[resp++] = 0x07;
+            res[resp++] = 0x06; 
 						break;
 					case 0x1f:
 					{
+            // Only used by SegaBoot for region checks (dev mode skips this check)
 						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 1f, {:02x} {:02x} {:02x} {:02x} {:02x} (REGION)", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5));
 						unsigned char string[] =  
 							"\x00\x00\x30\x00"
@@ -467,7 +475,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									res[resp++] = 0x20;	// 0x01
 									res[resp++] = 0x20|m_card_bit;	// 0x02
 									/*
-										bit 0: PLease take your card
+										bit 0: Please take your card
 										bit 1: endless waiting casues UNK_E to be called
 									*/
 									res[resp++] = 0x00;	// 0x03
@@ -576,6 +584,24 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 										{
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD GetState({:02X})", m_card_bit );
 											m_card_command = CARD_GET_CARD_STATE;
+
+                      //if (m_card_memory_size == 0)
+                      //{
+                      //  std::string card_filename(File::GetUserPath(D_TRIUSER_IDX) + "tricard_" +
+                      //                            SConfig::GetInstance().GetGameID().c_str() +
+                      //                            ".bin");
+
+                      //  if (File::Exists(card_filename))
+                      //  {
+                      //    File::IOFile card = File::IOFile(card_filename, "rb+");
+                      //    m_card_memory_size = (u32)card.GetSize();
+
+                      //    card.ReadBytes(m_card_memory, m_card_memory_size);
+                      //    card.Close();
+
+                      //    m_card_is_inserted = 1;
+                      //  }
+                      //}
 
                       if( m_tri_game == 1 && m_card_memory_size )
 											{
@@ -701,7 +727,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 											memcpy( m_card_memory, m_card_buffer+9, m_card_memory_size );										
 										
-											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "CARDWrite: {}", m_card_memory_size );
+											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARDWrite: {}", m_card_memory_size );
 											
 											std::string card_filename( File::GetUserPath(D_TRIUSER_IDX) + 
 											"tricard_" + SConfig::GetInstance().GetGameID().c_str() + ".bin" );
@@ -744,8 +770,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       }
 											break;
 										default:
-											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "CARD:Unhandled cmd!");
-											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "CARD:[{:08X}]", cmd );
+											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:Unhandled cmd!");
+											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:[{:08X}]", cmd );
 											//hexdump( m_card_buffer, m_card_offset );
 											break;
 										}
@@ -802,7 +828,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 							while (jvs_io < (jvs_io_buffer + jvs_io_length))
 							{
 								int cmd = *jvs_io++;
-								DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "JVS IO, node={}, command={:02x}", node, cmd);
+								DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:node={}, command={:02x}", node, cmd);
 
 								switch (cmd)
 								{
@@ -817,7 +843,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     default:
                       msg.addData("namco ltd.;FCA-1;Ver1.01;JPN,Multipurpose + Rotary Encoder");
                     break;
-                    case 2: // Virtua Striker 3/4
+                    case 2: // Virtua Striker 3 
+                    case 4: // Virtua Striker 4
                       msg.addData("SEGA ENTERPRISES,LTD.;I/O BD JVS;837-13551;Ver1.00");
                     break;
                   }
@@ -866,8 +893,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData((void *)"\x03\x06\x00\x00", 4);
 											msg.addData((void *)"\x00\x00\x00\x00", 4);
 											break;
-										case 2: // VS 3/4
-											// 2 Player, 2 Coin slots, 4 Analogs, 8Bit out
+										case 2: // VS 3
+											// 2 Player (9bit), 1 Coin slot, no Analog-in
 											msg.addData((void *)"\x01\x02\x0D\x00", 4);
 											msg.addData((void *)"\x02\x02\x00\x00", 4);
 											msg.addData((void *)"\x03\x04\x00\x00", 4);
@@ -884,7 +911,15 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       msg.addData((void *)"\x10\x01\x00\x00", 4);
                       msg.addData((void *)"\x12\x01\x00\x00", 4);
 											msg.addData((void *)"\x00\x00\x00\x00", 4);
-											break;
+                      break;
+                    case 4:  // VS 4
+                      // 2 Player (10bit), 1 Coin slot, 4 Analog-in
+                      msg.addData((void*)"\x01\x02\x0A\x00", 4);
+                      msg.addData((void*)"\x02\x01\x00\x00", 4);
+                      msg.addData((void*)"\x03\x04\x00\x00", 4);
+                      msg.addData((void*)"\x10\x01\x00\x00", 4);
+                      msg.addData((void*)"\x00\x00\x00\x00", 4);
+                      break;
 									}
 									break;
 								// convey ID of main board 
@@ -952,7 +987,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 												player_data[0] |= 0x10;
 										}
 										break;
-										// Controller configuration for Virtua Striker games
+										// Controller configuration for Virtua Striker 3 games
 										case 2:
 											// Start
 											if( PadStatus.button & PAD_BUTTON_START )
@@ -960,10 +995,10 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											// Service button
 											if( PadStatus.button & PAD_BUTTON_X )		
 												player_data[0] |= 0x40;
-											//  Pass
+											// Long Pass
 											if( PadStatus.button & PAD_TRIGGER_L )
 												player_data[0] |= 0x01;
-											//  Pass
+											// Short Pass
 											if( PadStatus.button & PAD_TRIGGER_R )
 												player_data[0] |= 0x02;
 											// Shoot
@@ -997,7 +1032,37 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											// VS-Cancel button
 											if( PadStatus.button & PAD_BUTTON_B )		
 												player_data[1] |= 0x02;
-											break;
+                      break;
+                    // Controller configuration for Virtua Striker 4 games
+                    case 4:
+                      // Start
+                      if (PadStatus.button & PAD_BUTTON_START)
+                        player_data[0] |= 0x80;
+                      // Service button
+                      if (PadStatus.button & PAD_BUTTON_X)
+                        player_data[0] |= 0x40;
+                      // Long Pass
+                      if (PadStatus.button & PAD_TRIGGER_L)
+                        player_data[0] |= 0x01;
+                      // Short Pass
+                      if (PadStatus.button & PAD_TRIGGER_R)
+                        player_data[0] |= 0x02;
+                      // Shoot
+                      if (PadStatus.button & PAD_BUTTON_A)
+                        player_data[1] |= 0x80;
+                      // Dash
+                      if (PadStatus.button & PAD_BUTTON_B)
+                        player_data[1] |= 0x40;
+                      // Tactics (U)
+                      if (PadStatus.button & PAD_BUTTON_LEFT)
+                        player_data[0] |= 0x20;
+                      // Tactics (M)
+                      if (PadStatus.button & PAD_BUTTON_UP)
+                        player_data[0] |= 0x08;
+                      // Tactics (D)
+                      if (PadStatus.button & PAD_BUTTON_RIGHT)
+                        player_data[0] |= 0x04;
+                      break;
 										}
 
 										for( int j=0; j<player_byte_count; ++j )
@@ -1073,6 +1138,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											break;
 										//  Virtua Strike games
                     case 2:
+                    case 4:
                     {
                       PadStatus2 = Pad::GetStatus(1); 
 											
@@ -1142,19 +1208,19 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								}
 								case 0xf0:
 									if (*jvs_io++ == 0xD9)
-										ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS RESET");
+										ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:RESET");
 									msg.addData(1);
 
 									d10_1 |= 1;
 									break;
 								case 0xf1:
 									node = *jvs_io++;
-                  ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS SET ADDRESS, node={}", node);
+                  ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:SET ADDRESS, node={}", node);
 									msg.addData(node == 1);
 									d10_1 &= ~1;
 									break;
 								default:
-                  ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS IO, node={}, command={:02x}", node, cmd);
+                  ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO: node={}, command={:02x}", node, cmd);
 									break;
 								}
 

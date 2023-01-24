@@ -2,6 +2,7 @@
 // Licensed under GPLv2
 // Refer to the license.txt file included.
 
+#pragma warning(disable : 4189)
 
 #include "Core/BootManager.h"
 
@@ -19,6 +20,7 @@
 #include "Common/IniFile.h"
 #include "Common/Logging/Log.h"
 #include "Common/IOFile.h"
+#include "DiscIO/DirectoryBlob.h"
 
 #include "Core/Boot/Boot.h"
 #include "Core/Config/MainSettings.h"
@@ -27,7 +29,6 @@
 #include "Core/ConfigLoaders/NetPlayConfigLoader.h"
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
-#include "Core/AMBaseboard.h"
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/SI/SI.h"
 #include "Core/HW/SI/SI_Device.h"
@@ -35,14 +36,19 @@
 #include "Core/HW/Memmap.h"
 #include "Core/HW/Sram.h"
 #include "Core/HW/DVD/DVDInterface.h"
+#include "Core/HW/DVD/DVDThread.h"
+#include "Core/HW/DVD/AMBaseboard.h"
 #include "Core/HW/WiimoteReal/WiimoteReal.h"
 #include "Core/Movie.h"
 #include "Core/NetPlayProto.h"
 #include "Core/PowerPC/PowerPC.h"
 #include "Core/System.h"
 #include "Core/WiiRoot.h"
+#include "Core/HLE/HLE.h"
+#include "Core/PowerPC/PPCSymbolDB.h" 
 
 #include "DiscIO/Enums.h"
+#include "DiscIO/VolumeDisc.h"
 
 #include <winsock2.h> 
 
@@ -140,14 +146,24 @@ namespace AMBaseboard
 {
 
 static u32 NAMCAMInit = 0;
-static File::IOFile		*m_netcfg;
-static File::IOFile		*m_netctrl;
-static File::IOFile		*m_dimm;
-
-static u32 m_controllertype;
+static u32 m_controllertype = 0;
 static u32 FIRMWAREMAP = 0;
-static unsigned char firmware[2*1024*1024];
+static u32 m_segaboot = 0;
+static u32 Timeouts[3] = {1000, 1000, 1000};
 
+static u32 GCAMKeyA;
+static u32 GCAMKeyB;
+static u32 GCAMKeyC;
+
+static File::IOFile* m_netcfg = nullptr;
+static File::IOFile* m_netctrl = nullptr;
+static File::IOFile* m_extra = nullptr;
+static File::IOFile* m_backup = nullptr;
+static File::IOFile* m_dimm = nullptr;
+
+unsigned char* m_dimm_disc = nullptr;
+
+static unsigned char firmware[2*1024*1024];
 static unsigned char media_buffer[0x60];
 static unsigned char network_command_buffer[0x4FFE00];
 static unsigned char network_buffer[64*1024];
@@ -165,107 +181,205 @@ static inline void PrintMBBuffer( u32 Address, u32 Length )
 																                            memory.Read_U32(Address+i+12) );
 	}
 }
-
-void Init( void )
+void FirmwareMap(bool on)
 {
-	u32 gameid = 0;
-	memset( media_buffer, 0, sizeof(media_buffer) );
-	memset( network_buffer, 0, sizeof(network_buffer) );
-	memset( network_command_buffer, 0, sizeof(network_command_buffer) );
-	memset( firmware, -1, sizeof(firmware) );
-	
-	// Convert game ID into hex 
-  sscanf(SConfig::GetInstance().GetGameID().c_str(), "%s", (char*) & gameid);
-
-	// This is checking for the real game IDs (not those people made up) (See boot.id within the game)
-  switch(Common::swap32(gameid))
-	{
-		// SBHA/SBGG - F-ZERO AX
-    case 0x53424841: // ALL
-    case 0x53424747: // G?
-			m_controllertype = 1;
-			break;
-		// SBLJ/SBLK - VIRTUA STRIKER 4 Ver.2006
-    case 0x53424C4A:  // JAP
-    case 0x53424C4B:  // K?
-		// SBHJ - VIRTUA STRIKER 4 VER.A
-		case 0x5342484A:	
-		// SBJA/SBJJ  - VIRTUA STRIKER 4
-    case 0x53424A41: // ALL
-    case 0x53424A4A: // JAP
-		// SBEJ/SBEY - Virtua Striker 2002
-    case 0x5342454A:  // JAP
-    case 0x53424559:  // Y?
-			m_controllertype = 2;
-			break;
-		// SBKJ/SBKP - MARIOKART ARCADE GP
-    case 0x53424B50:  // PAL
-    case 0x53424B5A:  // JAP
-		// SBNJ/SBNL - MARIOKART ARCADE GP2
-    case 0x53424E4A:  // JAP
-    case 0x53424E4C:  // L?
-    // GSBJ/G12U - SegaBoot
-    case 0x4753424A:
-    case 0x47313255:
-			m_controllertype = 3;
-			break;
-		default:
-		//	PanicAlertFmtT("Unknown game ID, using default controls.");
-			m_controllertype = 3;
-			break;
-    } 
-
-	std::string netcfg_Filename( File::GetUserPath(D_TRIUSER_IDX) + "trinetcfg.bin" );
-	if( File::Exists( netcfg_Filename ) )
-	{
-		m_netcfg = new File::IOFile( netcfg_Filename, "rb+" );
-	}
-	else
-	{
-		m_netcfg = new File::IOFile( netcfg_Filename, "wb+" );
-	}
-	
-	std::string netctrl_Filename( File::GetUserPath(D_TRIUSER_IDX) +  "trinetctrl.bin" );
-	if( File::Exists( netctrl_Filename ) )
-	{
-		m_netctrl = new File::IOFile( netctrl_Filename, "rb+" );
-	}
-	else
-	{
-		m_netctrl = new File::IOFile( netctrl_Filename, "wb+" );
-	}
-
-	std::string dimm_Filename(File::GetUserPath(D_TRIUSER_IDX) + "tridimm_" +
-                            SConfig::GetInstance().GetGameID().c_str() + ".bin");
-	if( File::Exists( dimm_Filename ) )
-	{
-		m_dimm = new File::IOFile( dimm_Filename, "rb+" );		
-	}
-	else
-	{
-		m_dimm = new File::IOFile( dimm_Filename, "wb+" );
-	}
+  if (on)
+    FIRMWAREMAP = 1;
+  else
+    FIRMWAREMAP = 0;
 }
-u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_type)
-{
-	NOTICE_LOG_FMT(DVDINTERFACE, "GCAM: {:08x} {:08x} DMA=addr:{:08x},len:{:08x}", Command, Offset, Address, Length );
 
+void InitKeys(u32 KeyA, u32 KeyB, u32 KeyC)
+{
+  GCAMKeyA = KeyA;
+  GCAMKeyB = KeyB;
+  GCAMKeyC = KeyC;
+}
+void Init(void)
+{
+  memset(media_buffer, 0, sizeof(media_buffer));
+  memset(network_buffer, 0, sizeof(network_buffer));
+  memset(network_command_buffer, 0, sizeof(network_command_buffer));
+  memset(firmware, -1, sizeof(firmware));
+
+  NAMCAMInit = 0;
+  m_controllertype = 0;
+  m_segaboot = 0;
+  FIRMWAREMAP = 0;
+
+  GCAMKeyA = 0;
+  GCAMKeyB = 0;
+  GCAMKeyC = 0;
+
+  if (File::Exists(File::GetUserPath(D_TRIUSER_IDX)) == false)
+  {
+    File::CreateFullPath(File::GetUserPath(D_TRIUSER_IDX));
+  }
+
+  std::string netcfg_Filename(File::GetUserPath(D_TRIUSER_IDX) + "trinetcfg.bin");
+  if (File::Exists(netcfg_Filename))
+  {
+    m_netcfg = new File::IOFile(netcfg_Filename, "rb+");
+  }
+  else
+  {
+    m_netcfg = new File::IOFile(netcfg_Filename, "wb+");
+  }
+  if (!m_netcfg)
+  {
+    PanicAlertFmt("Failed to open/create:{0}", netcfg_Filename);
+  }
+
+  std::string netctrl_Filename(File::GetUserPath(D_TRIUSER_IDX) + "trinetctrl.bin");
+  if (File::Exists(netctrl_Filename))
+  {
+    m_netctrl = new File::IOFile(netctrl_Filename, "rb+");
+  }
+  else
+  {
+    m_netctrl = new File::IOFile(netctrl_Filename, "wb+");
+  }
+
+  std::string extra_Filename(File::GetUserPath(D_TRIUSER_IDX) + "triextra.bin");
+  if (File::Exists(extra_Filename))
+  {
+    m_extra = new File::IOFile(extra_Filename, "rb+");
+  }
+  else
+  {
+    m_extra = new File::IOFile(extra_Filename, "wb+");
+  }
+
+  std::string dimm_Filename(File::GetUserPath(D_TRIUSER_IDX) + "tridimm_" +
+                            SConfig::GetInstance().GetGameID().c_str() + ".bin");
+  if (File::Exists(dimm_Filename))
+  {
+    m_dimm = new File::IOFile(dimm_Filename, "rb+");
+  }
+  else
+  {
+    m_dimm = new File::IOFile(dimm_Filename, "wb+");
+  }
+
+  std::string backup_Filename(File::GetUserPath(D_TRIUSER_IDX) + "backup_" +
+                              SConfig::GetInstance().GetGameID().c_str() + ".bin");
+  if (File::Exists(backup_Filename))
+  {
+    m_backup = new File::IOFile(backup_Filename, "rb+");
+  }
+  else
+  {
+    m_backup = new File::IOFile(backup_Filename, "wb+");
+  }
+
+  // This is the firmware for the Triforce
+  std::string sega_boot_Filename(File::GetUserPath(D_TRIUSER_IDX) + "segaboot.gcm");
+  if (File::Exists(sega_boot_Filename))
+  {
+    File::IOFile* sega_boot = new File::IOFile(sega_boot_Filename, "rb+");
+    if (sega_boot)
+    {
+      u64 Length = sega_boot->GetSize();
+      if (Length >= sizeof(firmware))
+      {
+        Length = sizeof(firmware);
+      }
+      sega_boot->ReadBytes(firmware, Length);
+      sega_boot->Close();
+    }
+  }
+}
+u8 *InitDIMM( void )
+{
+  if (!m_dimm_disc)
+  {
+    m_dimm_disc = new u8[512 * 1024 * 1024];
+  }
+  FIRMWAREMAP = 0;
+  return m_dimm_disc;
+}
+u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
+{
   auto& system = Core::System::GetInstance();
-  auto& memory = system.GetMemory();
+  auto& memory = system.GetMemory();   
+
+  /*
+    The triforce IPL sends these commands first
+    01010000 00000101 00000000
+    01010000 00000000 0000ffff
+  */
+  if (GCAMKeyA == 0)
+  {
+    /*
+      Since it is currently unknown how the seed is created
+      we have to patch out the crypto.
+    */
+    if (memory.Read_U32(0x8131ecf4))
+    {
+      memory.Write_U32(0, 0x8131ecf4);
+      memory.Write_U32(0, 0x8131ecf8);
+      memory.Write_U32(0, 0x8131ecfC);
+      memory.Write_U32(0, 0x8131ebe0);
+      memory.Write_U32(0, 0x8131ed6c);
+      memory.Write_U32(0, 0x8131ed70);
+      memory.Write_U32(0, 0x8131ed74);
+
+      memory.Write_U32(0x4E800020, 0x813025C8);
+      memory.Write_U32(0x4E800020, 0x81302674);
+
+      PowerPC::ppcState.iCache.Invalidate(0x813025C8);
+      PowerPC::ppcState.iCache.Invalidate(0x81302674);
+
+      HLE::Patch(0x813048B8, "OSReport");
+      HLE::Patch(0x8130095C, "OSReport");  // Apploader
+    }
+  }
+
+  DICMDBUF[0] ^= GCAMKeyA;
+  DICMDBUF[1] ^= GCAMKeyB;
+  //Length ^= GCAMKeyC; DMA Length is always plain
+
+  u32 seed = DICMDBUF[0] >> 16;
+
+  GCAMKeyA *= seed;
+  GCAMKeyB *= seed;
+  GCAMKeyC *= seed;
+
+  DICMDBUF[0] <<= 24;
+  DICMDBUF[1] <<= 2;
  
+  // SegaBoot adds bits for some reason to offset/length
+  // also adds 0x20 to offset
+  if (DICMDBUF[1] == 0x00100440)
+  {
+    m_segaboot = 1;
+  }
+
+  if (m_segaboot)
+  {
+    DICMDBUF[1] &= ~0x00100000;
+    DICMDBUF[1] -=  0x20;
+  }
+
+  u32 Command = DICMDBUF[0];
+  u32 Offset  = DICMDBUF[1];
+ 
+	NOTICE_LOG_FMT(DVDINTERFACE, "GCAM: {:08x} {:08x} DMA=addr:{:08x},len:{:08x} Keys: {:08x} {:08x} {:08x}",
+                                Command, Offset, Address, Length, GCAMKeyA, GCAMKeyB, GCAMKeyC );
+   
 	switch(Command>>24)
 	{
 		// Inquiry
-		case 0x12:
+    case 0x12:
+      if(FIRMWAREMAP == 1)
+      {
+        FIRMWAREMAP = 0;
+        m_segaboot = 0;
+      }
 			return 0x21000000;
 			break;
 		// Read
 		case 0xA8:
-			if(FIRMWAREMAP)
-			{
-        memcpy(memory.GetPointer(Address), firmware + Offset, Length);
-				return 0;
-			}
 			if( (Offset & 0x8FFF0000) == 0x80000000 )
 			{
 				switch(Offset)
@@ -296,11 +410,11 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 					break;
 				default:
 					PrintMBBuffer( Address, Length );
-					PanicAlertFmtT("Unhandled Media Board Read");
+					PanicAlertFmtT("Unhandled Media Board Read:{0:08x}", Address);
 					break;
 				}
 				return 0;
-			}
+      }
 			// Network configuration
 			if( (Offset == 0x00000000) && (Length == 0x80) )
 			{
@@ -308,18 +422,26 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 				m_netcfg->ReadBytes( memory.GetPointer(Address), Length );
 				return 0;
 			}
+      // Extra Settings
+      // media crc check on/off
+      if ((Offset == 0x1FFEFFE0) && (Length == 0x20))
+      {
+        m_extra->Seek(0, File::SeekOrigin::Begin);
+        m_extra->ReadBytes(memory.GetPointer(Address), Length);
+        return 0;
+      }      
 			// DIMM memory (8MB)
 			if( (Offset >= 0x1F000000) && (Offset <= 0x1F800000) )
 			{
-				u32 dimmoffset = Offset - 0x1F000000;
+        u32 dimmoffset = Offset - 0x1F000000;
         m_dimm->Seek(dimmoffset, File::SeekOrigin::Begin);
 				m_dimm->ReadBytes( memory.GetPointer(Address), Length );
 				return 0;
 			}
-			// DIMM command
+			// DIMM command (V1)
 			if( (Offset >= 0x1F900000) && (Offset <= 0x1F90003F) )
 			{
-				u32 dimmoffset = Offset - 0x1F900000;
+        u32 dimmoffset = Offset - 0x1F900000;
 				memcpy( memory.GetPointer(Address), media_buffer + dimmoffset, Length );
 				
 				NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Read MEDIA BOARD COMM AREA (1) ({:08x})", dimmoffset);
@@ -328,19 +450,32 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 			}
 			// Network command
 			if( (Offset >= 0x1F800200) && (Offset <= 0x1FCFFFFF) )
-			{
+      {
+        u32 dimmoffset = Offset - 0x1F800200;
 				NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Read NETWORK COMMAND BUFFER ({:08x},{})", Offset, Length );
-				memcpy( memory.GetPointer(Address), network_command_buffer, Length ); 		 
+        memcpy(memory.GetPointer(Address), network_command_buffer + dimmoffset, Length); 		 
 				return 0;
 			}
-			// Network buffer
-			if( (Offset >= 0x1FD00000) && (Offset <= 0x1FD0FFFF) )
-			{
-				NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Read NETWORK BUFFER ({:08x},{})", Offset, Length );
-				memcpy( memory.GetPointer(Address), network_buffer, Length ); 		 
-				return 0;
-			}
-			// DIMM command
+
+      // Network buffer
+      if ((Offset >= 0x1FD00000) && (Offset <= 0x1FD0FFFF))
+      {
+        u32 dimmoffset = Offset - 0x1FD00000;
+        NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Read NETWORK BUFFER (1) ({:08x},{})", Offset, Length);
+        memcpy(memory.GetPointer(Address), network_buffer + dimmoffset, Length);
+        return 0;
+      }
+
+      // Network buffer?
+      if ((Offset >= 0x1FA00000) && (Offset <= 0x1FA0FFFF))
+      {
+        u32 dimmoffset = Offset - 0x1FA00000;
+        NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Read NETWORK BUFFER (2) ({:08x},{})", Offset, Length);
+        memcpy(memory.GetPointer(Address), network_buffer + dimmoffset, Length);
+        return 0;
+      }
+
+			// DIMM command (V2)
 			if( (Offset >= 0x84000000) && (Offset <= 0x8400005F) )
 			{
 				u32 dimmoffset = Offset - 0x84000000;
@@ -365,16 +500,26 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 				m_netctrl->ReadBytes( memory.GetPointer(Address), Length );
 				return 0;
 			}
+
 			// Max GC disc offset
 			if( Offset >= 0x57058000 )
 			{
-				PanicAlertFmtT("Unhandled Media Board Read");
+				PanicAlertFmtT("Unhandled Media Board Read:{0:08x}", Offset );
 			}
-      return 0x23;
-      //if (!DVDInterface::DVDRead(Offset, Address, Length, reply_type))
-			//{
-			//	PanicAlertFmtT("Can't read from DVD_Plugin - DVD-Interface: Fatal Error");
-			//}
+
+      if (FIRMWAREMAP)
+      {
+        memcpy(memory.GetPointer(Address), firmware + Offset, Length);
+        return 0;
+      }
+
+      if (m_dimm_disc)
+      {
+        memcpy(memory.GetPointer(Address), m_dimm_disc + Offset, Length);
+        return 0;
+      }
+
+      return 1;			 
 			break;
 		// Write
 		case 0xAA:
@@ -403,21 +548,33 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 			{
         m_netcfg->Seek(0, File::SeekOrigin::Begin);
 				m_netcfg->WriteBytes( memory.GetPointer(Address), Length );
+        m_netcfg->Flush();
 				return 0;
-			}
+      }
+      // Extra Settings
+      // media crc check on/off
+      if ((Offset == 0x1FFEFFE0) && (Length == 0x20))
+      {
+        m_extra->Seek(0, File::SeekOrigin::Begin);
+        m_extra->WriteBytes(memory.GetPointer(Address), Length);
+        m_extra->Flush();
+        return 0;
+      }      
 			// Backup memory (8MB)
 			if( (Offset >= 0x000006A0) && (Offset <= 0x00800000) )
 			{
-        m_dimm->Seek(Offset, File::SeekOrigin::Begin);
-				m_dimm->WriteBytes( memory.GetPointer(Address), Length );
+        m_backup->Seek(Offset, File::SeekOrigin::Begin);
+        m_backup->WriteBytes(memory.GetPointer(Address), Length);
+        m_backup->Flush();
 				return 0;
 			}
-			// DIMM memory (3MB)
+			// DIMM memory (8MB)
 			if( (Offset >= 0x1F000000) && (Offset <= 0x1F800000) )
 			{
 				u32 dimmoffset = Offset - 0x1F000000;
         m_dimm->Seek(dimmoffset, File::SeekOrigin::Begin);
-				m_dimm->WriteBytes( memory.GetPointer(Address), Length );
+        m_dimm->WriteBytes(memory.GetPointer(Address), Length);
+        m_dimm->Flush();
 				return 0;
 			}
 			// Network command
@@ -429,17 +586,27 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 				memcpy( network_command_buffer+offset, memory.GetPointer(Address), Length );
 				PrintMBBuffer( Address, Length );
 				return 0;
-			}
-			// Network buffer
-			if( (Offset >= 0x1FD00000) && (Offset <= 0x1FD00FFF) )
-			{
-				u32 offset = Offset - 0x1FD00000;
+      }
+      // Network buffer
+      if ((Offset >= 0x1FD00000) && (Offset <= 0x1FD0FFFF))
+      {
+        u32 offset = Offset - 0x1FD00000;
 
-				//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: Write NETWORK BUFFER ({:08x},{})", Offset, Length );
-				memcpy( network_buffer + offset, memory.GetPointer(Address), Length );
-				PrintMBBuffer( Address, Length );
-				return 0;
-			}
+        ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: Write NETWORK BUFFER (1) ({:08x},{})", Offset, Length);
+        memcpy(network_buffer + offset, memory.GetPointer(Address), Length);
+        PrintMBBuffer(Address, Length);
+        return 0;
+      }
+      // Network buffer
+      if ((Offset >= 0x1FA00000) && (Offset <= 0x1FA0FFFF))
+      {
+        u32 offset = Offset - 0x1FA00000;
+
+        ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: Write NETWORK BUFFER (2) ({:08x},{})", Offset, Length);
+        memcpy(network_buffer + offset, memory.GetPointer(Address), Length);
+        PrintMBBuffer(Address, Length);
+        return 0;
+      }
 			// DIMM command
 			if( (Offset >= 0x1F900000) && (Offset <= 0x1F90003F) )
 			{
@@ -493,26 +660,27 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 			{
 				u32 dimmoffset = Offset - 0xFF000000;
         m_dimm->Seek(dimmoffset, File::SeekOrigin::Begin);
-				m_dimm->WriteBytes( memory.GetPointer(Address), Length );
+        m_dimm->WriteBytes(memory.GetPointer(Address), Length);
+        m_dimm->Flush();
 				return 0;
 			}
 			// Network control
 			if( (Offset == 0xFFFF0000) && (Length == 0x20) )
 			{
 				m_netctrl->Seek( 0, File::SeekOrigin::Begin );
-				m_netctrl->WriteBytes( memory.GetPointer(Address), Length );
+        m_netctrl->WriteBytes(memory.GetPointer(Address), Length);
+        m_netctrl->Flush();
 				return 0;
 			}
 			// Max GC disc offset
 			if( Offset >= 0x57058000 )
 			{
 				PrintMBBuffer( Address, Length );
-				PanicAlertFmtT("Unhandled Media Board Write");
+				PanicAlertFmtT("Unhandled Media Board Write:{0:08x}", Offset );
 			}
 			break;
 		// Execute
-		case 0xAB:
-
+    case 0xAB:
 			if( (Offset == 0) && (Length == 0) )
 			{
 				memset( media_buffer, 0, 0x20 );
@@ -525,6 +693,9 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 				if(*(u16*)(media_buffer+0x22))
 					NOTICE_LOG_FMT(DVDINTERFACE, "GCAM: Execute command:{:03X}", *(u16*)(media_buffer+0x22) );
 
+        // Recast for easier access
+        u32* media_buffer_4 = (u32*)(media_buffer + 0x20);
+
 				switch(*(u16*)(media_buffer+0x22))
 				{
 					// ?
@@ -532,8 +703,8 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 						*(u32*)(media_buffer+4) = 1;
 						break;
 					// DIMM size
-					case 0x001:
-						*(u32*)(media_buffer+4) = 0x20000000;
+          case 0x001:
+            *(u32*)(media_buffer + 4) = 0x20000000;
 						break;
 					// Media board status
 					/*
@@ -546,12 +717,24 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 					0x06: error xx
 					*/
 					case 0x100:
-						// Status
-						*(u32*)(media_buffer+4) = 5;
-						// Progress in %
-						*(u32*)(media_buffer+8) = 100;
-						break;
-					// Media board version: 3.03
+          {
+            static u32 status = 4;
+            static u32 progress = 90;
+            // Status
+            *(u32*)(media_buffer + 4) = status;
+            // Progress in %
+            *(u32*)(media_buffer + 8) = progress;
+            if (progress < 100)
+            {
+              progress++;
+            }
+            else
+            {
+              status = 5;
+            }            
+          }
+          break;
+					// Media board version: 3.11
 					case 0x101:
 						// Version
 						*(u16*)(media_buffer+4) = Common::swap16(0x1103);
@@ -564,7 +747,7 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 					case 0x102:
 						// 1: GD-ROM					
 						media_buffer[4] = 1;
-						media_buffer[5] = 0;
+						media_buffer[5] = 1;
 						// enable development mode (Sega Boot)
 						media_buffer[6] = 1;
 						// Only used when inquiry 0x29
@@ -615,10 +798,10 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 
 						SOCKET ret = accept( fd, addr, addrlen );
 
-						//int err = WSAGetLastError();
+						int err = WSAGetLastError();
 
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: accept( {}, 0x{:08x}, 0x{:08x} ):{} ({})\n", fd, addr, addrlen, ret, err );
-						media_buffer[4] = ret;
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: accept( {} ):{} ({})\n", fd, ret, err);
+            *(u32*)(media_buffer + 0x04) = ret;
 					} break;
 					case 0x402:
 					{
@@ -633,16 +816,19 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 						*(u32*)(&addr.sin_addr)	= Common::swap32(*(u32*)(&addr.sin_addr));
 
 						int ret = bind( fd, (const sockaddr*)&addr, len );
-						//int err = WSAGetLastError();
+						int err = WSAGetLastError();
 
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: bind( {}, ({},{:08x}:{}), {} ):{} ({})\n", fd, addr.sin_family, addr.sin_addr.S_un.S_addr, Common::swap16(addr.sin_port), len, ret, err );
-						media_buffer[4] = ret;
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: bind( {}, ({},{:08x}:{}), {} ):{} ({})\n", fd,
+                           addr.sin_family, addr.sin_addr.S_un.S_addr,
+                           Common::swap16(addr.sin_port), len, ret, err);
+            *(u32*)(media_buffer + 0x04) = ret;
 					} break;
 					case 0x403:
 					{
-						//u32 fd = *(u32*)(media_buffer+0x28);
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: closesocket( {} )\n", fd );
-						media_buffer[4] = 1;
+						u32 fd = *(u32*)(media_buffer+0x28);
+            int ret = closesocket(fd);
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: closesocket( {} ):{}\n", fd, ret);
+            *(u32*)(media_buffer + 0x04) = ret;
 					} break;
 					case 0x404:
 					{
@@ -651,15 +837,26 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 						u32 fd		= *(u32*)(media_buffer+0x28);
 						u32 len		= *(u32*)(media_buffer+0x30);
 
-            // sockaddr_in starts at offset 1 not 0
-						memcpy( (void*)&addr, network_command_buffer + 1 + *(u32*)(media_buffer+0x2C) - 0x1F800200, sizeof(struct sockaddr_in) );
+						memcpy( (void*)&addr, network_command_buffer + *(u32*)(media_buffer+0x2C) - 0x1F800200, sizeof(struct sockaddr_in) );
+
+            // CyCraft Connect iP
+            if (addr.sin_addr.S_un.S_addr == 1863035072)
+            {
+              addr.sin_addr.S_un.S_addr = 0xc0a8b217;
+            }
+
+            addr.sin_family = Common::swap16(addr.sin_family);
+            *(u32*)(&addr.sin_addr) = Common::swap32(*(u32*)(&addr.sin_addr));
 												
 						int ret = connect( fd, (const sockaddr*)&addr, len );
 
-						//int err = WSAGetLastError();
+						int err = WSAGetLastError();
 
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: connect( {}, ({},{:08x}:{}), {} ):{:d} ({})\n", fd, addr.sin_family, addr.sin_addr, Common::swap16(addr.sin_port), len, ret, err );
-						media_buffer[4] = ret;
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: connect( {}, ({},{}:{}), {} ):{} ({})\n", fd,
+                           addr.sin_family, addr.sin_addr.S_un.S_addr,
+                           Common::swap16(addr.sin_port), len, ret,
+                           err);
+            *(u32*)(media_buffer + 0x04) = ret;
 					} break;
 					// Set connect address(?)
 					case 0x405:
@@ -671,7 +868,8 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:08x})", *(u32*)(media_buffer+0x2C) );
 
 						u32 offset = *(u32*)(media_buffer+0x28) - 0x1F800200;
-						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: getIPbyDNS({})", (char*)(network_command_buffer+offset) );						
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: getIPbyDNS({})",
+                                         (char*)(network_command_buffer + offset));						
 					} break;
 					// Get IP (?)
 					case 0x406:
@@ -681,7 +879,7 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 
 						memcpy( media_buffer + 8, IP, IPLength );
 							
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: inet_addr({})\n", (char*)(media_buffer + 4) );
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: inet_addr({})\n", (char*)(media_buffer + 4));
 					} break;
 					case 0x408:
 					{
@@ -690,78 +888,130 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 
 						int ret = listen( fd, backlog );
 
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: listen( {}, {} ):{:d}\n", fd, backlog, ret );
-						media_buffer[4] = ret;
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: listen( {}, {} ):{:d}\n", fd, backlog, ret);
+            *(u32*)(media_buffer + 0x04) = ret;
 					} break;
 					case 0x409:
 					{
-						//u32 fd		= *(u32*)(media_buffer+0x28);
-						//u32 offset= *(u32*)(media_buffer+0x2C);
-						//u32 len		= *(u32*)(media_buffer+0x30);
+						u32 fd		= *(u32*)(media_buffer+0x28);
+            u32 offset= *(u32*)(media_buffer+0x2C);
+						u32 len		= *(u32*)(media_buffer+0x30);
 							
-						if( NAMCAMInit == 1 )
-						{
-							memcpy( network_buffer, JPEG, sizeof(JPEG) );
+            //if( NAMCAMInit == 1 )
+            //{
+            //  memcpy( network_buffer, JPEG, sizeof(JPEG) );
 
-							*(u32*)(media_buffer+0x04) = sizeof(JPEG);
+            //  *(u32*)(media_buffer+0x04) = sizeof(JPEG);
 
-							NAMCAMInit = 2;
-						} else {
-							*(u32*)(media_buffer+0x04) = 0;
-						}
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: recv( {}, 0x{:08x}, {} ):{}\n", fd, offset, len, *(u32*)(media_buffer+0x04) );
+            //  NAMCAMInit = 2;
+            //  break;
+            //}
+
+            int ret = 0;
+
+            if ((offset >= 0x1F800200) && (offset <= 0x1FCFFFFF))
+            {
+              offset -= 0x1F800200;
+              ret = recv(fd, (char*)(network_command_buffer + offset), len, 0);
+            }
+            else
+            {
+              ret = recv(fd, (char*)(network_buffer + offset), len, 0);
+            }
+
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: recv( {}, 0x{:08x}, {} ):{}\n", fd, offset, len,
+                           *(u32*)(media_buffer + 0x04));
+            *(u32*)(media_buffer + 0x04) = ret;
 					} break;
 					// send
 					case 0x40A:
 					{
-						//u32 fd		= (*(u32*)(media_buffer+0x28));
-						//u32 offset= (*(u32*)(media_buffer+0x2C));
+						u32 fd		= (*(u32*)(media_buffer+0x28));
+						u32 offset= (*(u32*)(media_buffer+0x2C));
 						u32 len		= (*(u32*)(media_buffer+0x30));
 
-						if( len == 26 )
-						{
-							NAMCAMInit = 1;
-							//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: NAMCAM HTTP request\n");
-						}
+            // Fake NAMCAN request
+						//if( len == 26 )
+						//{
+						//	NAMCAMInit = 1;
+            // *(u32*)(media_buffer + 0x04) = (len);
+						//	//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: NAMCAM HTTP request\n");
+            //  break;
+						//}
+            
+            int ret = 0;
 
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: send( {}, 0x{:08x}, {} )\n", fd, offset, len );
+            if ((offset >= 0x1FA00000) && (offset <= 0x1FA00FFF))
+            {
+              offset -= 0x1FA00000;
+              ret = send(fd, (char*)(network_buffer + offset), len, 0);
+            }
+            else if ((offset >= 0x1FD00000) && (offset <= 0x1FD00FFF))
+            {
+              offset -= 0x1FD00000;
+              ret = send(fd, (char*)(network_buffer + offset), len, 0);
+            }
+            else 
+            {
+              ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: send(error) unhandled destination:{}\n", offset  );
+              ret = send(fd, (char*)(network_command_buffer + offset), len, 0);
+            }
 
-						*(u32*)(media_buffer+0x04) = (len);
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: send( {}, 0x{:08x}, {} )\n", fd, offset, len);
+
+						*(u32*)(media_buffer+0x04) = ret;
 					} break;
-					// socket
+					// socket - Protocol is not sent
 					case 0x40B:
 					{
 						u32 af		= *(u32*)(media_buffer+0x28);
 						u32 type	= *(u32*)(media_buffer+0x2C);
-						u32 prot	= *(u32*)(media_buffer+0x30);
 
-						SOCKET fd = socket( af, type, prot );
+						SOCKET fd = socket(af, type, IPPROTO_TCP);
 
-						u_long val=1;
-						ioctlsocket( fd, FIONBIO, &val );
+            // set socket non-blocking
+            u_long val = 1;
+            ioctlsocket(fd, FIONBIO, &val);
 
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: socket( {}, {}, {} ):{}\n", af, type, prot, fd );
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: socket( {}, {}, 6 ):{}\n", af, type, fd);
 							
 						*(u32*)(media_buffer+0x04) = fd;
 						*(u32*)(media_buffer+0x08) = *(u32*)(media_buffer+0x28);
 						*(u32*)(media_buffer+0x0C) = *(u32*)(media_buffer+0x2C);
 						*(u32*)(media_buffer+0x10) = *(u32*)(media_buffer+0x30);
 					} break;
-					//  (?)
+					// select
 					case 0x40C:
 					{
-						//u32 Unknown		= ( *(u32*)(media_buffer+0x28) );
-						//u32 NOffsetA	= ( *(u32*)(media_buffer+0x30) );
-						//u32 NOffsetB	= ( *(u32*)(media_buffer+0x38) );
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: select( 0x{:08x} 0x{:08x} 0x{:08x} )\n", Unknown, NOffsetA, NOffsetB );
+            u32 nfds      =  *(u32*)(media_buffer+0x28);
+						u32 NOffsetA	=  *(u32*)(media_buffer+0x2C);
+						u32 NOffsetB	=  *(u32*)(media_buffer+0x38);
+
+            fd_set* readfds  = (fd_set*)(network_command_buffer + NOffsetA - 0x1F800200);
+            fd_set* writefds = (fd_set*)(network_command_buffer + NOffsetB - 0x1F800200);
+
+            FD_ZERO(readfds);
+            FD_ZERO(writefds);
+
+            FD_SET(nfds, readfds);
+            FD_SET(nfds, writefds);
+
+            timeval timeout;
+            timeout.tv_sec = Timeouts[0] / 1000;
+            timeout.tv_usec= 0;
+
+            int ret = select( nfds, readfds, writefds, nullptr, &timeout );
+
+            int err = WSAGetLastError();
+
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: select( 0x{:08x} 0x{:08x} 0x{:08x} ):{} {} \n", nfds, NOffsetA, NOffsetB, ret, err);
 						//hexdump( NetworkCMDBuffer, 0x40 );
 
-						*(u32*)(media_buffer+0x04) = (1);
+						*(u32*)(media_buffer+0x04) = ret;
 					} break;
 					// setsockopt
 					case 0x40E:
-					{
-
+					{ 
 						SOCKET s						= (SOCKET)	(*(u32*)(media_buffer+0x28));
 						int level						=		 (int)	(*(u32*)(media_buffer+0x2C));
 						int optname					=		 (int)	(*(u32*)(media_buffer+0x30));
@@ -770,19 +1020,24 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 
 						int ret = setsockopt( s, level, optname, optval, optlen );
 
-						//int err = WSAGetLastError();
+						int err = WSAGetLastError();
 
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: setsockopt( {:d}, {:04x}, {}, {:p}, {} ):{:d} ({})\n", s, level, optname, optval, optlen, ret, err );
-						media_buffer[4] = ret;
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: setsockopt( {:d}, {:04x}, {}, {:p}, {} ):{:d} ({})\n", s, level, optname, optval, optlen, ret, err);
+            *(u32*)(media_buffer + 0x04) = ret;
 					} break;
 					case 0x410:
 					{
-						//u32 fd		= (*(u32*)(media_buffer+0x28));
-						//u32 sizeA	= (*(u32*)(media_buffer+0x2C));
-						//u32 sizeB	= (*(u32*)(media_buffer+0x30));
-						//u32 sizeC	= (*(u32*)(media_buffer+0x30));
 
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: SetTimeOuts( {}, {}, {}, {} )\n", fd, sizeA, sizeB, sizeC );
+						u32 fd = media_buffer_4[2];
+						u32 timeoutA  = *(u32*)(media_buffer+0x2C);
+            u32 timeoutB  = *(u32*)(media_buffer+0x30);
+            u32 timeoutC  = *(u32*)(media_buffer+0x30);
+
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: SetTimeOuts( {}, {}, {}, {} )\n", fd, timeoutA,  timeoutB, timeoutC);
+
+            Timeouts[0] = timeoutA;
+            Timeouts[1] = timeoutB;
+            Timeouts[2] = timeoutC;
 							
 						*(u32*)(media_buffer+0x04) = (0);
 						*(u32*)(media_buffer+0x0C) = *(u32*)(media_buffer+0x2C);
@@ -791,52 +1046,63 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 					} break;
 					case 0x411:
 					{
-						//u32 fd = (*(u32*)(media_buffer+0x28));
+						u32 fd = (*(u32*)(media_buffer+0x28));
 
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: SetUnknownFlag( {} )\n", fd );
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: SetUnknownFlag( {} )\n", fd);
 
 						*(u32*)(media_buffer+0x04) = (0x46);
 					} break;
 					// Set IP
 					case 0x415:
 					{
-						//char *IP			= (char*)(network_command_buffer + ( (*(u32*)(media_buffer+0x28)) - 0x1F800200 ) );
+						char *IP			= (char*)(network_command_buffer + ( (*(u32*)(media_buffer+0x28)) - 0x1F800200 ) );
 						//u32 IPLength	= (*(u32*)(media_buffer+0x2C));
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: modifyMyIPaddr({})\n", IP );
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: modifyMyIPaddr({})\n", IP);
 					} break;
+          /*
+*           0x416: recvfrom
+            0x417: sendto
+          */
+          /*
+
+            This group of commands is used to establish a link connection.
+            Only used by F-Zero AX.
+          */
+
 					// Empty reply
-					case 0x601:
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: 0x601");
+					case 0x601: // Init Link ?
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: 0x601");
 						break;
-					case 0x606:
+					case 0x606: // Setup link?
 					{
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: 0x606: ({})", *(u16*)(media_buffer+0x24) );			// size
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({})", *(u16*)(media_buffer+0x26) );			// port
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:02x})", *( u8*)(media_buffer+0x28) );		// linknum
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:02x})", *( u8*)(media_buffer+0x29) );
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:04x})", *(u16*)(media_buffer+0x2A) );
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:08x})", *(u32*)(media_buffer+0x2C) );
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:08x})", Common::swap32( *(u32*)(media_buffer+0x30) ) );	// IP
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:08x})", Common::swap32( *(u32*)(media_buffer+0x34) ) );	// IP
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:08x})", Common::swap32( *(u32*)(media_buffer+0x38) ) );	// IP
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:08x})", Common::swap32( *(u32*)(media_buffer+0x3C) ) );	// IP
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: 0x606:");
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:  Size: ({}) ", *(u16*)(media_buffer + 0x24));    // size
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:  Port: ({})", *(u16*)(media_buffer + 0x26));     // port
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:LinkNum:({:02x})", *(u8*)(media_buffer + 0x28));  // linknum
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:02x})", *(u8*)(media_buffer + 0x29));
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:04x})", *(u16*)(media_buffer + 0x2A));
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:08x})", *(u32*)(media_buffer + 0x2C));
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:   IP:  ({:08x})", Common::swap32(*(u32*)(media_buffer + 0x30)));  // IP
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:   IP:  ({:08x})", Common::swap32(*(u32*)(media_buffer + 0x34)));  // IP
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:   IP:  ({:08x})", Common::swap32(*(u32*)(media_buffer + 0x38)));  // IP?
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:   IP:  ({:08x})", Common::swap32(*(u32*)(media_buffer + 0x3C)));  // IP?
 						
-						media_buffer[4] = 0;
+						*(u32*)(media_buffer + 0x04) = 0;
 					} break;
-					case 0x607:
+					case 0x607: // Search other device?
 					{
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: 0x607: ({})", *(u16*)(media_buffer+0x24) );
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({})", *(u16*)(media_buffer+0x26) );
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:08x})", *(u32*)(media_buffer+0x28) );
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: 0x607: ({})", *(u16*)(media_buffer + 0x24));
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:        ({})", *(u16*)(media_buffer + 0x26));
+            NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM:        ({:08x})", *(u32*)(media_buffer + 0x28));
 
 						u8 *Data = (u8*)( network_buffer + *(u32*)(media_buffer+0x28) - 0x1FD00000 );
 						
 						for( u32 i=0; i < 0x20; i+=0x10 )
 						{
 							NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: {:08x} {:08x} {:08x} {:08x}",	*(u32*)(Data+i),
-																																			*(u32*)(Data+i+4),
-																																			*(u32*)(Data+i+8),
-																																			*(u32*)(Data+i+12) );
+																																			            *(u32*)(Data+i+4),
+																																			            *(u32*)(Data+i+8),
+																																			            *(u32*)(Data+i+12) );
 						}
 
 						media_buffer[4] = 23;
@@ -846,7 +1112,7 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: 0x614");
 					}	break;
 					default:
-						//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: execute buffer UNKNOWN:{:03x}", *(u16*)(media_buffer+0x22) );
+						ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: execute buffer UNKNOWN:{:03x}", *(u16*)(media_buffer+0x22) );
 						break;
 					}
 
@@ -854,7 +1120,7 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 				return 0x66556677;
 			}
 
-			PanicAlertFmtT("Unhandled Media Board Execute");
+			PanicAlertFmtT("Unhandled Media Board Execute:{0:08x}", *(u16*)(media_buffer + 0x22) );
 			break;
 	}
 
@@ -862,13 +1128,66 @@ u32 ExecuteCommand(u32 Command, u32 Length, u32 Address, u32 Offset, u32 reply_t
 }
 u32 GetControllerType( void )
 {
+  u64 gameid = 0;
+  // Convert game ID into hex
+  sscanf(SConfig::GetInstance().GetGameID().c_str(), "%s", (char*)&gameid);
+
+  // This is checking for the real game IDs (not those people made up) (See boot.id within the game)
+  switch (Common::swap32((u32)gameid))
+  {
+  // SBHA/SBGG - F-ZERO AX
+  case 0x53424841:
+  case 0x53424747:
+      m_controllertype = 1;
+      break;
+  // SBEJ/SBEY - Virtua Striker 2002
+  case 0x5342454A:
+  case 0x53424559:
+      m_controllertype = 2;
+      break;
+  // SBKJ/SBKP - MARIOKART ARCADE GP
+  case 0x53424B50:
+  case 0x53424B5A:
+  // SBNJ/SBNL - MARIOKART ARCADE GP2
+  case 0x53424E4A:
+  case 0x53424E4C:
+  // GSBJ/G12U - SegaBoot (does not have a boot.id)
+  case 0x4753424A:
+  case 0x47313255:
+      m_controllertype = 3;
+      break;
+  // SBLJ/SBLK/SBLL - VIRTUA STRIKER 4 Ver.2006
+  case 0x53424C4A:
+  case 0x53424C4B:
+  case 0x53424C4C:
+  // SBHJ/SBHN - VIRTUA STRIKER 4 VER.A
+  case 0x5342484A:
+  case 0x5342484E:
+  // SBJA/SBJJ  - VIRTUA STRIKER 4
+  case 0x53424A41:
+  case 0x53424A4A:
+      m_controllertype = 4;
+      break;
+  default:
+      PanicAlertFmtT("Unknown game ID:{0:08x}, using default controls.", gameid );
+      m_controllertype = 3;
+      break;
+  }
 	return m_controllertype;
 }
 void Shutdown( void )
 {
-	m_netcfg->Close();
-	m_netctrl->Close();
+  m_netcfg->Close();
+  m_netctrl->Close();
+  m_extra->Close();
+  m_backup->Close();
 	m_dimm->Close();
+
+  if (m_dimm_disc)
+  {
+      delete[] m_dimm_disc;
+      m_dimm_disc = nullptr;
+  }
 }
 
 }

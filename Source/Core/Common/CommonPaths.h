@@ -121,6 +121,7 @@
 #define DSP_COEF "dsp_coef.bin"
 
 #define GC_IPL "IPL.bin"
+#define GC_TRI_IPL "IPL_TRI.bin"
 #define GC_SRAM "SRAM.raw"
 #define GC_MEMCARDA "MemoryCardA"
 #define GC_MEMCARDB "MemoryCardB"

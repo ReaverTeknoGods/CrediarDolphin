@@ -33,6 +33,7 @@ public:
   DVDInterfaceState& operator=(DVDInterfaceState&&) = delete;
   ~DVDInterfaceState();
 
+
   struct Data;
   Data& GetData() { return *m_data; }
 
@@ -140,7 +141,6 @@ void EjectDisc(EjectCause cause);                        // Must only be called 
 void ChangeDisc(const std::vector<std::string>& paths);  // Must only be called on the CPU thread
 void ChangeDisc(const std::string& new_path);            // Must only be called on the CPU thread
 bool AutoChangeDisc();                                   // Must only be called on the CPU thread
-void InitKeys(u32 KeyA, u32 KeyB, u32 KeyC);
 
 // This function returns true and calls SConfig::SetRunningGameMetadata(Volume&, Partition&)
 // if both of the following conditions are true:

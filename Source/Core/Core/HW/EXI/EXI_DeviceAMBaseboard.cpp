@@ -27,7 +27,7 @@
 #include "Core/ConfigLoaders/NetPlayConfigLoader.h"
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
-#include "Core/AMBaseboard.h"
+#include "Core/HW/DVD/AMBaseboard.h"
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/SI/SI.h"
 #include "Core/HW/SI/SI_Device.h"
@@ -47,26 +47,66 @@
 #include "EXI_Device.h"
 #include "EXI_DeviceAMBaseboard.h"
 
+static u16 CheckSum( u8 *Data, u32 Length)
+{
+  u16 check = 0;
+
+  for (u32 i=0; i < Length; i++ )
+  {
+    check += Data[i];
+  }
+
+  return check;
+}
+
 namespace ExpansionInterface
 {
 
-CEXIAMBaseboard::CEXIAMBaseboard()
-	: m_position(0)
-	, m_have_irq(false)
+CEXIAMBaseboard::CEXIAMBaseboard() : m_position(0), m_have_irq(false)
 {
   std::string backup_Filename(File::GetUserPath(D_TRIUSER_IDX) + "tribackup_" +
                               SConfig::GetInstance().GetGameID().c_str() + ".bin");
 
-	if( File::Exists( backup_Filename ) )
-	{
-		m_backup = new File::IOFile( backup_Filename, "rb+" );		
-	}
-	else
-	{
-		m_backup = new File::IOFile( backup_Filename, "wb+" );
-	}
-}
+  if (File::Exists(backup_Filename))
+  {
+    m_backup = new File::IOFile(backup_Filename, "rb+");
+  }
+  else
+  {
+    m_backup = new File::IOFile(backup_Filename, "wb+");
+  }
 
+  if (!m_backup)
+  {
+    PanicAlertFmt("Failed to open tribackup\nFile might be in use.");
+  }
+
+  // Virtua Striker 4 needs a higher FIRM version
+  // Which is read from the backup data?!
+  if (AMBaseboard::GetControllerType() == 4)
+  {
+    if ( m_backup->GetSize() != 0 )
+    {
+      u8* data = new u8[m_backup->GetSize()];
+
+      m_backup->ReadBytes(data, m_backup->GetSize());
+
+      // Set FIRM version
+      *(u16*)(data + 0x12) = 0x1703;
+      *(u16*)(data + 0x212) = 0x1703;
+
+      //Update checksum
+      *(u16*)(data + 0x0A)  = Common::swap16( CheckSum(data + 0xC, 0x1F4) );
+      *(u16*)(data + 0x20A) = Common::swap16( CheckSum(data + 0x20C, 0x1F4) );
+
+      m_backup->Seek( 0, File::SeekOrigin::Begin );
+      m_backup->WriteBytes( data, m_backup->GetSize() );
+      m_backup->Flush();
+
+      delete[] data;
+    }
+  }
+}
 CEXIAMBaseboard::~CEXIAMBaseboard()
 {
   m_backup->Close();
@@ -130,7 +170,8 @@ void CEXIAMBaseboard::TransferByte(u8& _byte)
 				break;
 			case 0x02:
 				DEBUG_LOG_FMT(SP1,"AM-BB COMMAND: Backup Write:{:04x}-{:02x}", m_backoffset, m_command[1] );
-				m_backup->WriteBytes( &m_command[1], 1 );				
+				m_backup->WriteBytes( &m_command[1], 1 );
+        m_backup->Flush();
 				_byte = 0x01;
 				break;
 			case 0x03:

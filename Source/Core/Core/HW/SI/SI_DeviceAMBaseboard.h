@@ -44,16 +44,16 @@ private:
     CARD_INIT = 0x10,
     CARD_GET_CARD_STATE = 0x20,
     CARD_IS_PRESENT = 0x40,
-    CARD_LOAD_CARD = 0xB0,
-    CARD_CLEAN_CARD = 0xA0,
     CARD_READ = 0x33,
     CARD_WRITE = 0x53,
     CARD_WRITE_INFO = 0x7C,
     CARD_78 = 0x78,
     CARD_7A = 0x7A,
     CARD_7D = 0x7D,
-    CARD_D0 = 0xD0,
     CARD_80 = 0x80,
+    CARD_CLEAN_CARD = 0xA0,
+    CARD_LOAD_CARD = 0xB0,
+    CARD_D0 = 0xD0,
   };
 
   unsigned short m_coin[2];

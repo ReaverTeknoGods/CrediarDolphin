@@ -22,6 +22,7 @@
 #include "Core/HLE/HLE.h"
 #include "Core/HW/DVD/DVDInterface.h"
 #include "Core/HW/EXI/EXI_DeviceIPL.h"
+#include "Core/HW/DVD/AMBaseboard.h"
 #include "Core/HW/Memmap.h"
 #include "Core/IOS/DI/DI.h"
 #include "Core/IOS/ES/ES.h"
@@ -304,7 +305,19 @@ bool CBoot::EmulatedBS2_GC(Core::System& system, const DiscIO::VolumeDisc& volum
 
   bool ret =  RunApploader(/*is_wii*/ false, volume, riivolution_patches);
 
-  DVDInterface::InitKeys( memory.Read_U32(0x00000000), memory.Read_U32(0x00000004) , memory.Read_U32(0x00000008) );
+  //Check for Triforce board being connected
+  const ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SERIAL_PORT_1);
+  bool enable_gcam = (Type == ExpansionInterface::EXIDeviceType::AMBaseboard) ? 1 : 0;
+  if (enable_gcam)
+  {
+    // Load game into RAM, like on the actual Triforce
+    u8* dimm_disc = AMBaseboard::InitDIMM();
+    volume.Read( 0, 0x20000000, dimm_disc, DiscIO::PARTITION_NONE );
+
+  // Triforce disc register obfucation
+    AMBaseboard::InitKeys( memory.Read_U32(0), memory.Read_U32(4), memory.Read_U32(8) );
+    AMBaseboard::FirmwareMap(false);
+  }
 
   return ret;
 }
