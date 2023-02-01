@@ -24,6 +24,8 @@ namespace ExpansionInterface
     void SetCS(int _iCS) override;
     bool IsPresent() const override;
     bool IsInterruptSet() override;
+    void DMAWrite(u32 addr, u32 size) override;
+    void DMARead(u32 addr, u32 size) override;
     void DoState(PointerWrap& p) override;
 
 
@@ -39,6 +41,8 @@ namespace ExpansionInterface
   };
 
 	  int m_position;
+    u32 m_backup_dma_off;
+    u32 m_backup_dma_len;
 	  bool m_have_irq;
 	  u32 m_irq_timer;
 	  u32 m_irq_status;

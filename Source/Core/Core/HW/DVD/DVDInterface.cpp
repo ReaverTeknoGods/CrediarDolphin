@@ -921,7 +921,7 @@ void ExecuteCommand(ReplyType reply_type)
   DIInterruptType interrupt_type = DIInterruptType::TCINT;
   bool command_handled_by_thread = false;
 
-  NOTICE_LOG_FMT(DVDINTERFACE,
+  INFO_LOG_FMT(DVDINTERFACE,
                  "DVD: {:08x} {:08x} {:08x} DMA=addr:{:08x},len:{:08x}",
                  state.DICMDBUF[0], state.DICMDBUF[1], state.DICMDBUF[2], state.DIMAR, state.DILENGTH);
 

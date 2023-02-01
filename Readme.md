@@ -1,4 +1,4 @@
-# Dolphin - A GameCube and Wii Emulator
+# Dolphin - A GameCube, Triforce and Wii Emulator
 
 [Homepage](https://dolphin-emu.org/) | [Project Site](https://crediar.dev/crediar/dolphin) | [Buildbot](https://dolphin.ci/) | [Forums](https://forums.dolphin-emu.org/) | [Wiki](https://wiki.dolphin-emu.org/) | [GitHub Wiki](https://github.com/dolphin-emu/dolphin/wiki) | [Issue Tracker](https://bugs.dolphin-emu.org/projects/emulator/issues) | [Coding Style](https://github.com/dolphin-emu/dolphin/blob/master/Contributing.md) | [Transifex Page](https://explore.transifex.com/delroth/dolphin-emu/)
 

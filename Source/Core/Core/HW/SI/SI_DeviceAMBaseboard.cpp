@@ -466,11 +466,6 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									res[resp++] = 0x00;	// 0x02
 									res[resp++] = 0x30;	// 0x03
 									break;
-								case CARD_IS_PRESENT:
-									res[resp++] = 0x40;	// 0x01
-									res[resp++] = 0x22;	// 0x02
-									res[resp++] = 0x30;	// 0x03
-									break;
 								case CARD_GET_CARD_STATE:
 									res[resp++] = 0x20;	// 0x01
 									res[resp++] = 0x20|m_card_bit;	// 0x02
@@ -480,58 +475,63 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									*/
 									res[resp++] = 0x00;	// 0x03
 									break;
-								case CARD_7A:
-									res[resp++] = 0x7A;	// 0x01
-									res[resp++] = 0x00;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_78:
-									res[resp++] = 0x78;	// 0x01
-									res[resp++] = 0x00;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_WRITE_INFO:
-									res[resp++] = 0x7C;	// 0x01
-									res[resp++] = 0x02;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_D0:
-									res[resp++] = 0xD0;	// 0x01
-									res[resp++] = 0x00;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_80:
-									res[resp++] = 0x80;	// 0x01
-                  if( m_tri_game == 1 )
-                  {
-                    res[resp++] = 0x01;	// 0x02
-                  }
-                  else
-                  {
-                    res[resp++] = 0x31;	// 0x02
-                  }
-									res[resp++] = 0x30;	// 0x03
-									break;
-								case CARD_CLEAN_CARD:
-									res[resp++] = 0xA0;	// 0x01
-									res[resp++] = 0x02;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
-								case CARD_LOAD_CARD:
-									res[resp++] = 0xB0;	// 0x01
-									res[resp++] = 0x02;	// 0x02
-									res[resp++] = 0x30;	// 0x03
-									break;
-								case CARD_WRITE:
-                  res[resp++] = 0x53;	// 0x01
-									res[resp++] = 0x02;	// 0x02
-									res[resp++] = 0x00;	// 0x03
-									break;
 								case CARD_READ:
 									res[resp++] = 0x33;	// 0x01
 									res[resp++] = 0x02;	// 0x02
                   res[resp++] = 0x53;	// 0x03
-									break;									
+                  break;
+                case CARD_IS_PRESENT:
+                  res[resp++] = 0x40;  // 0x01
+                  res[resp++] = 0x22;  // 0x02
+                  res[resp++] = 0x30;  // 0x03
+                  break;
+                case CARD_WRITE:
+                  res[resp++] = 0x53;  // 0x01
+                  res[resp++] = 0x02;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_SET_PRINT_PARAM:
+                  res[resp++] = 0x78;  // 0x01
+                  res[resp++] = 0x00;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_REGISTER_FONT:
+                  res[resp++] = 0x7A;  // 0x01
+                  res[resp++] = 0x00;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_WRITE_INFO:
+                  res[resp++] = 0x7C;  // 0x01
+                  res[resp++] = 0x02;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_EJECT:
+                  res[resp++] = 0x80;  // 0x01
+                  if (m_tri_game == 1)
+                  {
+                      res[resp++] = 0x01;  // 0x02
+                  }
+                  else
+                  {
+                      res[resp++] = 0x31;  // 0x02
+                  }
+                  res[resp++] = 0x30;  // 0x03
+                  break;
+                case CARD_CLEAN_CARD:
+                  res[resp++] = 0xA0;  // 0x01
+                  res[resp++] = 0x02;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;
+                case CARD_LOAD_CARD:
+                  res[resp++] = 0xB0;  // 0x01
+                  res[resp++] = 0x02;  // 0x02
+                  res[resp++] = 0x30;  // 0x03
+                  break;
+                case CARD_SET_SHUTTER:
+                  res[resp++] = 0xD0;  // 0x01
+                  res[resp++] = 0x00;  // 0x02
+                  res[resp++] = 0x00;  // 0x03
+                  break;						
 								}
 
 								res[resp++] = 0x30;	// 0x04
@@ -648,7 +648,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											break;
 										case 0x7A000000:
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown7A");
-											m_card_command = CARD_7A;
+											m_card_command = CARD_REGISTER_FONT;
 											break;
 										case 0xB0000000:
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD LoadCard");
@@ -690,15 +690,15 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											
 											m_card_read_packet[POff++] = 0x33;	// CARD CMD
 
-											if( m_card_is_inserted )
+											if (m_card_is_inserted)             // CARD Status
 											{
-												m_card_read_packet[POff++] = '1';	// CARD Status
+                        m_card_read_packet[POff++] = 0x31;
 											} else {
-												m_card_read_packet[POff++] = '0';	// CARD Status
+                        m_card_read_packet[POff++] = 0x30;
 											}
 
-											m_card_read_packet[POff++] = '0';		// 
-											m_card_read_packet[POff++] = '0';		// 
+											m_card_read_packet[POff++] = 0x30;		// 
+											m_card_read_packet[POff++] = 0x30;    // 
 
 
 											//Data reply
@@ -742,36 +742,36 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											break;
 										}
 										case 0x78000000:
-											DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown78");
-											m_card_command	= CARD_78;
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown78");
+											m_card_command	= CARD_SET_PRINT_PARAM;
 											break;
 										case 0x7C000000:
-                      DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD WriteCardInfo");
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD WriteCardInfo");
 											m_card_command	= CARD_WRITE_INFO;
 											break;
 										case 0x7D000000:
-                      DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Print");
-											m_card_command	= CARD_7D;
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Print");
+											m_card_command	= CARD_ERASE;
 											break;
 										case 0x80000000:
-                      DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown80");
-											m_card_command	= CARD_80;
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Eject");
+											m_card_command	= CARD_EJECT;
                       if( m_tri_game != 1 )
                       {
                         m_card_bit = 0;
                       }
 											break;
 										case 0xD0000000:
-											DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD UnknownD0");
-                      m_card_command = CARD_D0;
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD UnknownD0");
+                      m_card_command = CARD_SET_SHUTTER;
                       if( m_tri_game != 1 )
                       {
                         m_card_bit = 0;
                       }
 											break;
 										default:
-											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:Unhandled cmd!");
-											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:[{:08X}]", cmd );
+											ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:Unhandled cmd!");
+                      ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:[{:08X}]", cmd);
 											//hexdump( m_card_buffer, m_card_offset );
 											break;
 										}
@@ -835,16 +835,16 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								// read ID data
 								case 0x10:
 									msg.addData(1);
-                  switch (AMBaseboard::GetControllerType())
-                  {
-                    // F-Zero AX
-                    case 1:
-                    case 3: // Mario Kart GP 1/2
+                  switch (AMBaseboard::GetGameType())
+                  { 
+                    case FZeroAX:
+                    case MarioKartGP:
+                    case MarioKartGP2: 
                     default:
                       msg.addData("namco ltd.;FCA-1;Ver1.01;JPN,Multipurpose + Rotary Encoder");
                     break;
-                    case 2: // Virtua Striker 3 
-                    case 4: // Virtua Striker 4
+                    case VirtuaStriker3: 
+                    case VirtuaStriker4: 
                       msg.addData("SEGA ENTERPRISES,LTD.;I/O BD JVS;837-13551;Ver1.00");
                     break;
                   }
@@ -884,16 +884,16 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								*/
 								case 0x14:
 									msg.addData(1);
-									switch(AMBaseboard::GetControllerType())
+									switch(AMBaseboard::GetGameType())
 									{
-										case 1: //  F-Zero AX
+                    case FZeroAX: 
 											// 2 Player (12bit) (p2=paddles), 1 Coin slot, 6 Analog-in
 											msg.addData((void *)"\x01\x02\x0C\x00", 4);
 											msg.addData((void *)"\x02\x01\x00\x00", 4);
 											msg.addData((void *)"\x03\x06\x00\x00", 4);
 											msg.addData((void *)"\x00\x00\x00\x00", 4);
 											break;
-										case 2: // VS 3
+                    case VirtuaStriker3: 
 											// 2 Player (9bit), 1 Coin slot, no Analog-in
 											msg.addData((void *)"\x01\x02\x0D\x00", 4);
 											msg.addData((void *)"\x02\x02\x00\x00", 4);
@@ -901,8 +901,9 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData((void *)"\x10\x01\x00\x00", 4);
 											msg.addData((void *)"\x12\x08\x00\x00", 4);
 											msg.addData((void *)"\x00\x00\x00\x00", 4);
-											break;
-										case 3: // MK GP 1/2
+                      break;
+                    case MarioKartGP:
+                    case MarioKartGP2: 
 										default:
 											//1 Player (15bit), 1 Coin slot, 3 Analog-in, 1 CARD, 1 Driver-out
 											msg.addData((void *)"\x01\x01\x0F\x00", 4);
@@ -912,7 +913,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       msg.addData((void *)"\x12\x01\x00\x00", 4);
 											msg.addData((void *)"\x00\x00\x00\x00", 4);
                       break;
-                    case 4:  // VS 4
+                    case VirtuaStriker4:
                       // 2 Player (10bit), 1 Coin slot, 4 Analog-in
                       msg.addData((void*)"\x01\x02\x0A\x00", 4);
                       msg.addData((void*)"\x02\x01\x00\x00", 4);
@@ -949,10 +950,10 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     PadStatus = Pad::GetStatus(0);
 										unsigned char player_data[3] = {0,0,0};
 
-										switch(AMBaseboard::GetControllerType())
+										switch(AMBaseboard::GetGameType())
 										{
 										// Controller configuration for F-Zero AX
-										case 1:
+                    case FZeroAX:
 										if( i == 0 )
 										{
 											// Start
@@ -988,7 +989,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 										}
 										break;
 										// Controller configuration for Virtua Striker 3 games
-										case 2:
+                    case VirtuaStriker3:
 											// Start
 											if( PadStatus.button & PAD_BUTTON_START )
 												player_data[0] |= 0x80;
@@ -1017,24 +1018,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											if( PadStatus.button & PAD_BUTTON_RIGHT )	
 												player_data[0] |= 0x04;
 											break;
-										// Controller configuration for Mario Kart and other games
-										default:
-										case 3:
-											// Start
-											if( PadStatus.button & PAD_BUTTON_START )
-												player_data[0] |= 0x80;
-											// Service button
-											if( PadStatus.button & PAD_BUTTON_X )
-												player_data[0] |= 0x40;
-											// Item button
-											if( PadStatus.button & PAD_BUTTON_A )		
-												player_data[1] |= 0x20;	
-											// VS-Cancel button
-											if( PadStatus.button & PAD_BUTTON_B )		
-												player_data[1] |= 0x02;
-                      break;
                     // Controller configuration for Virtua Striker 4 games
-                    case 4:
+                    case VirtuaStriker4:
                       // Start
                       if (PadStatus.button & PAD_BUTTON_START)
                         player_data[0] |= 0x80;
@@ -1063,6 +1048,23 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       if (PadStatus.button & PAD_BUTTON_RIGHT)
                         player_data[0] |= 0x04;
                       break;
+                    // Controller configuration for Mario Kart and other games
+                    default:
+                    case MarioKartGP:
+                    case MarioKartGP2:
+                      // Start
+                      if (PadStatus.button & PAD_BUTTON_START)
+                        player_data[0] |= 0x80;
+                      // Service button
+                      if (PadStatus.button & PAD_BUTTON_X)
+                        player_data[0] |= 0x40;
+                      // Item button
+                      if (PadStatus.button & PAD_BUTTON_A)
+                        player_data[1] |= 0x20;
+                      // VS-Cancel button
+                      if (PadStatus.button & PAD_BUTTON_B)
+                        player_data[1] |= 0x02;
+                      break;
 										}
 
 										for( int j=0; j<player_byte_count; ++j )
@@ -1070,7 +1072,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									}
 									break;
 								}
-								// read m_coin inputs
+								// Read Coin I/O status
 								case 0x21:
 								{ 
 									int slots = *jvs_io++;
@@ -1099,10 +1101,9 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                   GCPadStatus PadStatus2;
                   PadStatus = Pad::GetStatus(0);
 
-                  switch( AMBaseboard::GetControllerType() )
+                  switch( AMBaseboard::GetGameType() )
 									{
-										// F-Zero AX
-										case 1:
+                    case FZeroAX:
 											// Steering
 											if( m_motorforce )
 											{
@@ -1136,9 +1137,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData((u8)0);
 
 											break;
-										//  Virtua Strike games
-                    case 2:
-                    case 4:
+                    case VirtuaStriker3:
+                    case VirtuaStriker4:
                     {
                       PadStatus2 = Pad::GetStatus(1); 
 											
@@ -1152,8 +1152,9 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData(PadStatus2.stickY);
                       msg.addData((u8)0);
                     } break;
-										// Mario Kart and other games
-										case 3:
+                    default:
+                    case MarioKartGP:
+                    case MarioKartGP2:
 											// Steering
 											msg.addData(PadStatus.stickX);
 											msg.addData((u8)0);
@@ -1168,7 +1169,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											break;
 									}
 								}
-								// decrease number of coins
+								// Decrease Coin count
 								case 0x30:
 								{
 									int slot = *jvs_io++;
@@ -1184,7 +1185,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									msg.addData(1);
 									break;
 								}
-								// output the total number of coins
+								// Get Coin Count
 								case 0x35:
 								{
 									int slot = *jvs_io++;
@@ -1208,14 +1209,14 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								}
 								case 0xf0:
 									if (*jvs_io++ == 0xD9)
-										ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:RESET");
+                    NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:RESET");
 									msg.addData(1);
 
 									d10_1 |= 1;
 									break;
 								case 0xf1:
 									node = *jvs_io++;
-                  ERROR_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:SET ADDRESS, node={}", node);
+                  NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:SET ADDRESS, node={}", node);
 									msg.addData(node == 1);
 									d10_1 &= ~1;
 									break;
@@ -1240,12 +1241,10 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 							break;
 						}
 					case 0x60:
-              ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 60, {:02x} {:02x} {:02x}", ptr(1), ptr(2),
-                            ptr(3));
+              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 60, {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3));
 						break;
 					default:
-            ERROR_LOG_FMT(AMBASEBOARDDEBUG,
-                          "GC-AM: Command {:02x} (unknown) {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(0), ptr(1),
+            ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command {:02x} (unknown) {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(0), ptr(1),
                           ptr(2), ptr(3), ptr(4), ptr(5));
 						break;
 					}
@@ -1302,7 +1301,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 	return iPosition;
 }
 
-// Not really used on GC-AM
+// Unused
 bool CSIDevice_AMBaseboard::GetData(u32& _Hi, u32& _Low)
 {
 	_Low = 0;
