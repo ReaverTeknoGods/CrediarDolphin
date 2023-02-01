@@ -947,125 +947,130 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 									for( int i=0; i<player_count; ++i )
                   { 
-                    PadStatus = Pad::GetStatus(0);
 										unsigned char player_data[3] = {0,0,0};
 
 										switch(AMBaseboard::GetGameType())
 										{
-										// Controller configuration for F-Zero AX
-                    case FZeroAX:
-										if( i == 0 )
-										{
-											// Start
-											if( PadStatus.button & PAD_BUTTON_START )
-												player_data[0] |= 0x80;
-											// Service button
-											if( PadStatus.button & PAD_BUTTON_X )
-												player_data[0] |= 0x40;
-											// Boost
-											if( PadStatus.button & PAD_BUTTON_Y )
-												player_data[0] |= 0x02;
-											// View Change 1
-											if( PadStatus.button & PAD_BUTTON_RIGHT )
-												player_data[0] |= 0x20;		
-											// View Change 2
-											if( PadStatus.button & PAD_BUTTON_LEFT )
-												player_data[0] |= 0x10;	
-											// View Change 3
-											if( PadStatus.button & PAD_BUTTON_UP )
-												player_data[0] |= 0x08;	
-											// View Change 4
-											if( PadStatus.button & PAD_BUTTON_DOWN )
-												player_data[0] |= 0x04;
-										}
-										else if ( i == 1 )
-										{
-											//  Paddle left
-                      if( PadStatus.button & PAD_BUTTON_A )
-												player_data[0] |= 0x20;
-											//  Paddle right
-                      if( PadStatus.button & PAD_BUTTON_B )
-												player_data[0] |= 0x10;
-										}
-										break;
-										// Controller configuration for Virtua Striker 3 games
-                    case VirtuaStriker3:
-											// Start
-											if( PadStatus.button & PAD_BUTTON_START )
-												player_data[0] |= 0x80;
-											// Service button
-											if( PadStatus.button & PAD_BUTTON_X )		
-												player_data[0] |= 0x40;
-											// Long Pass
-											if( PadStatus.button & PAD_TRIGGER_L )
-												player_data[0] |= 0x01;
-											// Short Pass
-											if( PadStatus.button & PAD_TRIGGER_R )
-												player_data[0] |= 0x02;
-											// Shoot
-											if( PadStatus.button & PAD_BUTTON_A )
-												player_data[1] |= 0x80;
-											// Dash
-											if( PadStatus.button & PAD_BUTTON_B )
-												player_data[1] |= 0x40;
-											// Tactics (U)
-											if( PadStatus.button & PAD_BUTTON_LEFT )	
-												player_data[0] |= 0x20;
-											// Tactics (M)
-											if( PadStatus.button & PAD_BUTTON_UP )		
-												player_data[0] |= 0x08;	
-											// Tactics (D)
-											if( PadStatus.button & PAD_BUTTON_RIGHT )	
-												player_data[0] |= 0x04;
-											break;
-                    // Controller configuration for Virtua Striker 4 games
-                    case VirtuaStriker4:
-                      // Start
-                      if (PadStatus.button & PAD_BUTTON_START)
-                        player_data[0] |= 0x80;
-                      // Service button
-                      if (PadStatus.button & PAD_BUTTON_X)
-                        player_data[0] |= 0x40;
-                      // Long Pass
-                      if (PadStatus.button & PAD_TRIGGER_L)
-                        player_data[0] |= 0x01;
-                      // Short Pass
-                      if (PadStatus.button & PAD_TRIGGER_R)
-                        player_data[0] |= 0x02;
-                      // Shoot
-                      if (PadStatus.button & PAD_BUTTON_A)
-                        player_data[1] |= 0x80;
-                      // Dash
-                      if (PadStatus.button & PAD_BUTTON_B)
-                        player_data[1] |= 0x40;
-                      // Tactics (U)
-                      if (PadStatus.button & PAD_BUTTON_LEFT)
-                        player_data[0] |= 0x20;
-                      // Tactics (M)
-                      if (PadStatus.button & PAD_BUTTON_UP)
-                        player_data[0] |= 0x08;
-                      // Tactics (D)
-                      if (PadStatus.button & PAD_BUTTON_RIGHT)
-                        player_data[0] |= 0x04;
-                      break;
-                    // Controller configuration for Mario Kart and other games
-                    default:
-                    case MarioKartGP:
-                    case MarioKartGP2:
-                      // Start
-                      if (PadStatus.button & PAD_BUTTON_START)
-                        player_data[0] |= 0x80;
-                      // Service button
-                      if (PadStatus.button & PAD_BUTTON_X)
-                        player_data[0] |= 0x40;
-                      // Item button
-                      if (PadStatus.button & PAD_BUTTON_A)
-                        player_data[1] |= 0x20;
-                      // VS-Cancel button
-                      if (PadStatus.button & PAD_BUTTON_B)
-                        player_data[1] |= 0x02;
-                      break;
-										}
+										  // Controller configuration for F-Zero AX
+                      case FZeroAX:
+                      PadStatus = Pad::GetStatus(0);
+										  if( i == 0 )
+										  {
+											  // Start
+											  if( PadStatus.button & PAD_BUTTON_START )
+												  player_data[0] |= 0x80;
+											  // Service button
+											  if( PadStatus.button & PAD_BUTTON_X )
+												  player_data[0] |= 0x40;
+											  // Boost
+											  if( PadStatus.button & PAD_BUTTON_Y )
+												  player_data[0] |= 0x02;
+											  // View Change 1
+											  if( PadStatus.button & PAD_BUTTON_RIGHT )
+												  player_data[0] |= 0x20;		
+											  // View Change 2
+											  if( PadStatus.button & PAD_BUTTON_LEFT )
+												  player_data[0] |= 0x10;	
+											  // View Change 3
+											  if( PadStatus.button & PAD_BUTTON_UP )
+												  player_data[0] |= 0x08;	
+											  // View Change 4
+											  if( PadStatus.button & PAD_BUTTON_DOWN )
+												  player_data[0] |= 0x04;
+										  }
+										  else if ( i == 1 )
+										  {
+											  //  Paddle left
+                        if( PadStatus.button & PAD_BUTTON_A )
+												  player_data[0] |= 0x20;
+											  //  Paddle right
+                        if( PadStatus.button & PAD_BUTTON_B )
+												  player_data[0] |= 0x10;
+										  }
+										  break;
+										  // Controller configuration for Virtua Striker 3 games
+                      case VirtuaStriker3:
+                        PadStatus = Pad::GetStatus(i);
+											  // Start
+											  if( PadStatus.button & PAD_BUTTON_START )
+												  player_data[0] |= 0x80;
+											  // Service button
+											  if( PadStatus.button & PAD_BUTTON_X )		
+												  player_data[0] |= 0x40;
+											  // Long Pass
+											  if( PadStatus.button & PAD_TRIGGER_L )
+												  player_data[0] |= 0x01;
+											  // Short Pass
+											  if( PadStatus.button & PAD_TRIGGER_R )
+                          player_data[1] |= 0x80;
+											  // Shoot
+											  if( PadStatus.button & PAD_BUTTON_A )
+                          player_data[0] |= 0x02;
+											  // Left
+											  if( PadStatus.button & PAD_BUTTON_LEFT )	
+												  player_data[0] |= 0x08;
+											  // Up
+											  if( PadStatus.button & PAD_BUTTON_UP )		
+												  player_data[0] |= 0x20;	
+											  // Right
+                        if (PadStatus.button & PAD_BUTTON_RIGHT)
+                          player_data[0] |= 0x04;
+                        // Down
+                        if (PadStatus.button & PAD_BUTTON_DOWN)
+                          player_data[0] |= 0x10;
+											  break;
+                      // Controller configuration for Virtua Striker 4 games
+                      case VirtuaStriker4:
+                      {
+                        PadStatus = Pad::GetStatus(i);
+                        // Start
+                        if (PadStatus.button & PAD_BUTTON_START)
+                          player_data[0] |= 0x80;
+                        // Service button
+                        if (PadStatus.button & PAD_BUTTON_X)
+                          player_data[0] |= 0x40;
+                        // Long Pass
+                        if (PadStatus.button & PAD_TRIGGER_L)
+                          player_data[0] |= 0x01;
+                        // Short Pass
+                        if (PadStatus.button & PAD_TRIGGER_R)
+                          player_data[0] |= 0x02;
+                        // Shoot
+                        if (PadStatus.button & PAD_BUTTON_A)
+                          player_data[1] |= 0x80;
+                        // Dash
+                        if (PadStatus.button & PAD_BUTTON_B)
+                          player_data[1] |= 0x40;
+                        // Tactics (U)
+                        if (PadStatus.button & PAD_BUTTON_LEFT)
+                          player_data[0] |= 0x20;
+                        // Tactics (M)
+                        if (PadStatus.button & PAD_BUTTON_UP)
+                          player_data[0] |= 0x08;
+                        // Tactics (D)
+                        if (PadStatus.button & PAD_BUTTON_RIGHT)
+                          player_data[0] |= 0x04;
+                      } break;
+                      // Controller configuration for Mario Kart and other games
+                      default:
+                      case MarioKartGP:
+                      case MarioKartGP2:
+                      {
+                        PadStatus = Pad::GetStatus(0);
+                        // Start
+                        if (PadStatus.button & PAD_BUTTON_START)
+                          player_data[0] |= 0x80;
+                        // Service button
+                        if (PadStatus.button & PAD_BUTTON_X)
+                          player_data[0] |= 0x40;
+                        // Item button
+                        if (PadStatus.button & PAD_BUTTON_A)
+                          player_data[1] |= 0x20;
+                        // VS-Cancel button
+                        if (PadStatus.button & PAD_BUTTON_B)
+                          player_data[1] |= 0x02;
+                      } break;
+                    }
 
 										for( int j=0; j<player_byte_count; ++j )
 											msg.addData(player_data[j]);
