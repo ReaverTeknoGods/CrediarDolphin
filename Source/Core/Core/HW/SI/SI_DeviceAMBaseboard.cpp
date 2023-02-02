@@ -351,6 +351,17 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 							NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (SERIAL) Command:{:06x}", cmd );
 
+              // Gekitou Pro Yakyuu 
+              if( cmd == 0x801000 )
+              {
+                res[resp++] = 0x31;
+                res[resp++] = 0x03;
+                res[resp++] = 1;
+                res[resp++] = 2;
+                res[resp++] = 3;
+                break;
+              }
+
 							// Serial - Wheel
 					    if( cmd == 0x7FFFFF )
 					    {
@@ -893,7 +904,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData((void *)"\x03\x06\x00\x00", 4);
 											msg.addData((void *)"\x00\x00\x00\x00", 4);
 											break;
-                    case VirtuaStriker3: 
+                    case VirtuaStriker3:
+                    case GekitouProYakyuu:
 											// 2 Player (9bit), 1 Coin slot, no Analog-in
 											msg.addData((void *)"\x01\x02\x0D\x00", 4);
 											msg.addData((void *)"\x02\x02\x00\x00", 4);
@@ -1050,7 +1062,39 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                         // Tactics (D)
                         if (PadStatus.button & PAD_BUTTON_RIGHT)
                           player_data[0] |= 0x04;
-                      } break;
+                      }
+                      break;
+                      // Controller configuration for Gekitou Pro Yakyuu
+                      case GekitouProYakyuu:
+                        PadStatus = Pad::GetStatus(i);
+                        // Start
+                        if (PadStatus.button & PAD_BUTTON_START)
+                          player_data[0] |= 0x80;
+                        // Service button
+                        if (PadStatus.button & PAD_BUTTON_X)
+                          player_data[0] |= 0x40;
+                        //  A
+                        if (PadStatus.button & PAD_BUTTON_B)
+                          player_data[0] |= 0x01;
+                        //  B
+                        if (PadStatus.button & PAD_BUTTON_A)
+                          player_data[0] |= 0x02;
+                        //  Gekitou
+                        if (PadStatus.button & PAD_TRIGGER_L )
+                          player_data[1] |= 0x80;
+                        // Left
+                        if (PadStatus.button & PAD_BUTTON_LEFT)
+                          player_data[0] |= 0x08;
+                        // Up
+                        if (PadStatus.button & PAD_BUTTON_UP)
+                          player_data[0] |= 0x20;
+                        // Right
+                        if (PadStatus.button & PAD_BUTTON_RIGHT)
+                          player_data[0] |= 0x04;
+                        // Down
+                        if (PadStatus.button & PAD_BUTTON_DOWN)
+                          player_data[0] |= 0x10;
+                        break;
                       // Controller configuration for Mario Kart and other games
                       default:
                       case MarioKartGP:

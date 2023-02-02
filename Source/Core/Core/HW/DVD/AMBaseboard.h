@@ -33,6 +33,7 @@ enum GameType
   MarioKartGP2,
   VirtuaStriker3,
   VirtuaStriker4,
+  GekitouProYakyuu,
   KeyOfAvalon
 };
 

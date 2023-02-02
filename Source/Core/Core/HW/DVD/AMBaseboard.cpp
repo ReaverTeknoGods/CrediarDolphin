@@ -955,15 +955,22 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 						memcpy( (void*)&addr, network_command_buffer + off , sizeof(struct sockaddr_in) );
 
             // CyCraft Connect IP, change to localhost
-            if( addr.sin_addr.S_un.S_addr == 1863035072 )
+            if (addr.sin_addr.S_un.S_addr == 1863035072)
             {
               addr.sin_addr.S_un.S_addr = 0x7F000001;
+            }
+
+            // NAMCO Camera
+            if (addr.sin_addr.S_un.S_addr == 0xc0a81d68)
+            {
+              addr.sin_addr.S_un.S_addr = 0x7F000001;
+              addr.sin_family = htons(AF_INET); // fix family?
             }
 
             addr.sin_family = Common::swap16(addr.sin_family);
             *(u32*)(&addr.sin_addr) = Common::swap32(*(u32*)(&addr.sin_addr));
               
-            u32 timeout = Timeouts[0] / 1000;
+            u32 timeout = 10;
             while(timeout--)
             {
               ret = connect(fd, (const sockaddr*)&addr, len);
@@ -1009,7 +1016,8 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 
 						memcpy( media_buffer + 8, IP, IPLength );
 							
-						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: inet_addr({})\n", (char*)(media_buffer + 4));
+						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: inet_addr({})\n", IP );
+            media_buffer_out_32[1] = Common::swap32(inet_addr(IP));
 					} break;
           /*
             0x407: ioctl
@@ -1154,11 +1162,27 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
             u32 NOffsetA = media_buffer_in_32[3] - NetworkCommandAddress;
             u32 NOffsetB = media_buffer_in_32[6] - NetworkCommandAddress;
 
-            fd_set* readfds  = (fd_set*)(network_command_buffer + NOffsetA);
-            fd_set* writefds = (fd_set*)(network_command_buffer + NOffsetB);
+            fd_set readfds_{};
+            fd_set writefds_{};
 
-            FD_ZERO(readfds);
+            fd_set* readfds  = &readfds_;     
+            fd_set* writefds = &writefds_;
+
+
+            // Either of these can be zero but select still expects two inputs
+
+            if (media_buffer_in_32[3])
+            {
+              readfds = (fd_set*)(network_command_buffer + NOffsetA);
+            }
+
+            if (media_buffer_in_32[6])
+            {
+              writefds = (fd_set*)(network_command_buffer + NOffsetB);
+            }
+
             FD_ZERO(writefds);
+            FD_ZERO(readfds);
 
             FD_SET(nfds, readfds);
             FD_SET(nfds, writefds);
@@ -1360,6 +1384,10 @@ u32 GetGameType( void )
   case 0x53424658:
       m_game_type = KeyOfAvalon;
       break;
+  // SBGX - Gekitou Pro Yakyuu
+  case 0x53424758:
+      m_game_type = GekitouProYakyuu;
+      break;      
   default:
       PanicAlertFmtT("Unknown game ID:{0:08x}, using default controls.", gameid);
   // GSBJ/G12U - SegaBoot (does not have a boot.id)
