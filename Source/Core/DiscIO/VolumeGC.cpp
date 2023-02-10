@@ -177,6 +177,7 @@ VolumeGC::ConvertedGCBanner VolumeGC::LoadBannerFile() const
     {
       default:
       case 0x02:  // JAPAN
+      case 0x08:  // ASIA
         m_triforce_region = Region::NTSC_J;
         break;
       case 0x0E:  // USA

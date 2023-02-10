@@ -83,7 +83,8 @@ CEXIAMBaseboard::CEXIAMBaseboard() : m_position(0), m_have_irq(false)
 
   // Virtua Striker 4 needs a higher FIRM version
   // Which is read from the backup data?!
-  if( AMBaseboard::GetGameType() == VirtuaStriker4 )
+  if (AMBaseboard::GetGameType() == VirtuaStriker4 ||
+      AMBaseboard::GetGameType() == GekitouProYakyuu )
   {
     if ( m_backup->GetSize() != 0 )
     {

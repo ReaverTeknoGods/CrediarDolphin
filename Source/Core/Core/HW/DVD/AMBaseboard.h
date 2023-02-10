@@ -24,7 +24,7 @@ namespace DVDInterface
 {
 class DVDInterfaceState;
 struct Data;
-}
+}  // namespace DVDInterface
 
 enum GameType
 {
@@ -36,6 +36,11 @@ enum GameType
   GekitouProYakyuu,
   KeyOfAvalon
 };
+enum MediaType
+{
+  GDROM = 1,
+  NAND, 
+};
 
 namespace AMBaseboard
 {
@@ -45,6 +50,7 @@ namespace AMBaseboard
   void  InitKeys(u32 KeyA, u32 KeyB, u32 KeyC);
   u32   ExecuteCommand( u32 *DICMDBUF, u32 Address, u32 Length );
 	u32		GetGameType( void );
+  u32   GetMediaType( void );
 	void	Shutdown( void );
 };
 

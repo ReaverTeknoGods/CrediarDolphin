@@ -50,7 +50,13 @@
 #include "DiscIO/Enums.h"
 #include "DiscIO/VolumeDisc.h"
 
+#ifdef WIN32
 #include <winsock2.h> 
+#else
+#include <fcntl.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#endif
 
 unsigned char JPEG[2712] =
 {
@@ -182,7 +188,7 @@ static inline void PrintMBBuffer( u32 Address, u32 Length )
 
 	for( u32 i=0; i < Length; i+=0x10 )
 	{
-		INFO_LOG_FMT(DVDINTERFACE, "GC-AM: {:08x} {:08x} {:08x} {:08x}",	memory.Read_U32(Address+i),
+		DEBUG_LOG_FMT(DVDINTERFACE, "GC-AM: {:08x} {:08x} {:08x} {:08x}",	memory.Read_U32(Address+i),
 																                            memory.Read_U32(Address+i+4),
 																                            memory.Read_U32(Address+i+8),
 																                            memory.Read_U32(Address+i+12) );
@@ -257,8 +263,7 @@ void Init(void)
     m_extra = new File::IOFile(extra_Filename, "wb+");
   }
 
-  std::string dimm_Filename(File::GetUserPath(D_TRIUSER_IDX) + "tridimm_" +
-                            SConfig::GetInstance().GetGameID().c_str() + ".bin");
+  std::string dimm_Filename(File::GetUserPath(D_TRIUSER_IDX) + "tridimm_" + SConfig::GetInstance().GetGameID().c_str() + ".bin");
   if (File::Exists(dimm_Filename))
   {
     m_dimm = new File::IOFile(dimm_Filename, "rb+");
@@ -268,8 +273,7 @@ void Init(void)
     m_dimm = new File::IOFile(dimm_Filename, "wb+");
   }
 
-  std::string backup_Filename(File::GetUserPath(D_TRIUSER_IDX) + "backup_" +
-                              SConfig::GetInstance().GetGameID().c_str() + ".bin");
+  std::string backup_Filename(File::GetUserPath(D_TRIUSER_IDX) + "backup_" + SConfig::GetInstance().GetGameID().c_str() + ".bin");
   if (File::Exists(backup_Filename))
   {
     m_backup = new File::IOFile(backup_Filename, "rb+");
@@ -362,17 +366,22 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
     m_segaboot = 1;
   }
 
-  if (m_segaboot)
-  {
-    DICMDBUF[1] &= ~0x00100000;
-    DICMDBUF[1] -=  0x20;
-  }
-
   u32 Command = DICMDBUF[0];
   u32 Offset  = DICMDBUF[1];
  
 	INFO_LOG_FMT(DVDINTERFACE, "GCAM: {:08x} {:08x} DMA=addr:{:08x},len:{:08x} Keys: {:08x} {:08x} {:08x}",
                                 Command, Offset, Address, Length, GCAMKeyA, GCAMKeyB, GCAMKeyC );
+  //if (Address == 0x01300000)
+  //{
+  //  INFO_LOG_FMT(DVDINTERFACE, "GCAM: PC:{:08x}", PC);
+  //  PowerPC::breakpoints.Add( PC, false );
+  //}
+
+  // Test menu exit to sega boot
+  //if (Offset == 0x0002440 && Address == 0x013103a0 )
+  //{
+  //  FIRMWAREMAP = 1;
+  //}
    
 	switch(Command>>24)
 	{
@@ -386,45 +395,44 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
       //Avalon excepts higher version
       if (GetGameType() == KeyOfAvalon )
       {
-        return 0x29000000;
+        return 0x29484100;
       }
 
 			return 0x21000000;
 			break;
 		// Read
 		case 0xA8:
-      if ((Offset & 0x8FFF0000) == 0x80000000 || (Offset & 0x8FFF0000) == 0x84000000)
+      if ((Offset & 0x8FFF0000) == 0x80000000 )
 			{
 				switch(Offset)
 				{
 				// Media board status (1)
-        case 0x80000000:
-        case 0x84000000:
+        case 0x80000000: 
 					memory.Write_U16( Common::swap16( 0x0100 ), Address );
 					break;
 				// Media board status (2)
-        case 0x80000020:
-        case 0x84000020:
+        case 0x80000020: 
 					memset( memory.GetPointer(Address), 0, Length );
 					break;
 				// Media board status (3)
-        case 0x80000040:
-        case 0x84000040:
-					memset( memory.GetPointer(Address), 0xFFFFFFFF, Length );
+        case 0x80000040: 
+					memset( memory.GetPointer(Address), 0xFF, Length );
 					// DIMM size (512MB)
 					memory.Write_U32( Common::swap32( 0x20000000 ), Address );
 					// GCAM signature
 					memory.Write_U32( 0x4743414D, Address+4 );
-					break;
-				// Firmware status (1)
+          break;
+        // ?
+        case 0x80000100:
+          memory.Write_U32(Common::swap32( (u32)0x001F1F1F ), Address);
+          break;
+        // Firmware status (1)
         case 0x80000120:
-        case 0x84000120:
-					memory.Write_U32( Common::swap32( (u32)0x00000001 ), Address );
-					break;
+          memory.Write_U32(Common::swap32( (u32)0x01FA ), Address);
+          break;
 				// Firmware status (2)
-        case 0x80000140:
-        case 0x84000140:
-					memory.Write_U32( Common::swap32( (u32)0x00000001 ), Address );
+        case 0x80000140: 
+					memory.Write_U32( Common::swap32( (u32)1 ), Address);
 					break;
 				default:
 					PrintMBBuffer( Address, Length );
@@ -500,9 +508,10 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 				memcpy( memory.GetPointer(Address), media_buffer + dimmoffset, Length );
 				
 				NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Read MEDIA BOARD COMM AREA (2) ({:08x})", dimmoffset );
-				//PrintMBBuffer( Address, Length );
+				PrintMBBuffer( Address, Length );
 				return 0;
-			}
+      }
+
 			// DIMM memory (8MB)
 			if( (Offset >= 0xFF000000) && (Offset <= 0xFF800000) )
 			{
@@ -527,6 +536,11 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 
       if (FIRMWAREMAP)
       {
+        if (m_segaboot)
+        {
+          DICMDBUF[1] &= ~0x00100000;
+          DICMDBUF[1] -= 0x20;
+        }
         memcpy(memory.GetPointer(Address), firmware + Offset, Length);
         return 0;
       }
@@ -628,31 +642,36 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
         PrintMBBuffer(Address, Length);
         return 0;
       }
-			// DIMM command
+
+			// DIMM command, used when inquiry returns 0x21000000
 			if( (Offset >= 0x1F900000) && (Offset <= 0x1F90003F) )
 			{
 				u32 dimmoffset = Offset - 0x1F900000;
 				memcpy( media_buffer + dimmoffset, memory.GetPointer(Address), Length );
 				
-				INFO_LOG_FMT(DVDINTERFACE, "GC-AM: Write MEDIA BOARD COMM AREA ({:08x})", dimmoffset );
+				INFO_LOG_FMT(DVDINTERFACE, "GC-AM: Write MEDIA BOARD COMM AREA (1) ({:08x})", dimmoffset );
 				PrintMBBuffer( Address, Length );
 				return 0;
 			}
+
 			// DIMM command, used when inquiry returns 0x29000000
 			if( (Offset >= 0x84000000) && (Offset <= 0x8400005F) )
-			{
-				u32 dimmoffset = Offset - 0x84000000;
-				memcpy( media_buffer + dimmoffset, memory.GetPointer(Address), Length );
+      {
+        u32 dimmoffset = Offset - 0x84000000;
+        INFO_LOG_FMT(DVDINTERFACE, "GC-AM: Write MEDIA BOARD COMM AREA (2) ({:08x})", dimmoffset);
+        PrintMBBuffer(Address, Length);
 
-				if( dimmoffset == 0x40 )
-        {
+        u8 cmd_flag = memory.Read_U8(Address);
+
+				if( dimmoffset == 0x40 && cmd_flag == 1 )
+        { 
           // Recast for easier access
           u32* media_buffer_in_32 = (u32*)(media_buffer + 0x20);
           u16* media_buffer_in_16 = (u16*)(media_buffer + 0x20);
           u32* media_buffer_out_32 = (u32*)(media_buffer);
           u16* media_buffer_out_16 = (u16*)(media_buffer);
 
-					INFO_LOG_FMT(DVDINTERFACE, "GC-AM: EXECUTE ({:03x})", media_buffer_in_16[1] );
+					INFO_LOG_FMT(DVDINTERFACE, "GC-AM: Execute command:{:03X}", media_buffer_in_16[1] );
 					
 					memset(media_buffer, 0, 0x20);
           media_buffer_out_16[0] = media_buffer_in_16[0];
@@ -683,7 +702,7 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
             // Unknown
             media_buffer_out_16[3] = 1;
             media_buffer_out_32[2] = 1;
-            media_buffer_out_32[8] = 0xFFFFFFFF;
+            media_buffer_out_32[4] = 0xFF;
             break;
           // System flags
           case 0x102:
@@ -692,7 +711,7 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
             media_buffer[5] = 1;
             // enable development mode (Sega Boot)
             // This also allows region free booting
-            media_buffer[6] = 0;
+            media_buffer[6] = 1;
             media_buffer_out_16[4] = 0;  // Access Count
             // Only used when inquiry 0x29
             /*
@@ -710,18 +729,38 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
             break;
           // Media board serial
           case 0x103:
-            memcpy(media_buffer + 4, "A89E-27A50364511", 16);
+            memcpy(media_buffer + 4, "A85E-01A62204904", 16);
             break;
           case 0x104:
             media_buffer[4] = 1;
             break;
-					}
+          }
+
+          for ( u32 i=0; i<0x20; i+=4)
+          {
+            *(u32*)(media_buffer + 0x40 + i) = *(u32*)(media_buffer);
+          }
+
+          memset(media_buffer + 0x20, 0, 0x20 );
+          return 0;
 				}
-				
-				//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: Write MEDIA BOARD COMM AREA (2) ({:08x})", dimmoffset );
-				PrintMBBuffer( Address, Length );
-				return 0;
+        else
+        {
+          memcpy(media_buffer + dimmoffset, memory.GetPointer(Address), Length);
+        }
+        return 0;
 			}
+
+      // Firmware Write
+      if ((Offset >= 0x84800000) && (Offset <= 0x84818000))
+      {
+        u32 dimmoffset = Offset - 0x84800000;
+
+        NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Write Firmware ({:08x})", dimmoffset );
+        PrintMBBuffer(Address, Length);
+        return 0;
+      }
+
 			// DIMM memory (8MB)
 			if( (Offset >= 0xFF000000) && (Offset <= 0xFF800000) )
 			{
@@ -815,27 +854,14 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
             media_buffer_out_32[8] = 0xFFFFFFFF;
 						break;
 					// System flags
-					case 0x102:
-						// 1: GD-ROM					
-						media_buffer[4] = 1;
-						media_buffer[5] = 1;
+          case 0x102:
+            // 1: GD-ROM
+            media_buffer[4] = 1;
+            media_buffer[5] = 1;
 						// Enable development mode (Sega Boot)
             // This also allows region free booting
-						media_buffer[6] = 0;
+						media_buffer[6] = 1; 
             media_buffer_out_16[4] = 0;  // Access Count
-						// Only used when inquiry 0x29
-						/*
-							0: NAND/MASK BOARD(HDD)
-							1: NAND/MASK BOARD(MASK)
-							2: NAND/MASK BOARD(NAND)
-							3: NAND/MASK BOARD(NAND)
-							4: DIMM BOARD (TYPE 3)
-							5: DIMM BOARD (TYPE 3)
-							6: DIMM BOARD (TYPE 3)
-							7: N/A
-							8: Unknown
-						*/
-						//media_buffer[7] = 0;
 						break;
 					// Media board serial
 					case 0x103:
@@ -891,8 +917,13 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
               else
               {
                 // Set newly created socket non-blocking
+#ifdef WIN32
                 u_long val = 1;
-                ioctlsocket(ret, FIONBIO, &val);
+                ioctlsocket(fd, FIONBIO, &val);
+#else
+                int flags = cntl(fd, F_GETFL);
+                fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+#endif
                 break;
               }
             }
@@ -1145,8 +1176,13 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 						SOCKET fd = socket(af, type, IPPROTO_TCP);
 
             // Set socket non-blocking
+#ifdef WIN32
             u_long val = 1;
             ioctlsocket(fd, FIONBIO, &val);
+#else
+            int flags = cntl( fd, F_GETFL );
+            fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+#endif
 
 						NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: socket( {}, {}, 6 ):{}\n", af, type, fd);
 							
@@ -1330,7 +1366,7 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 					}
 
 				memset( media_buffer + 0x20, 0, 0x20 );
-				return 0x66556677;
+				return 0;
 			}
 
 			PanicAlertFmtT("Unhandled Media Board Execute:{0:08x}", *(u16*)(media_buffer + 0x22) );
@@ -1339,7 +1375,28 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 
 	return 0;
 }
-u32 GetGameType( void )
+
+u32 GetMediaType(void)
+{
+  switch (GetGameType())
+  {
+    default:
+    case FZeroAX: // Monster Ride is on a NAND
+    case VirtuaStriker3:
+    case VirtuaStriker4:
+    case GekitouProYakyuu:
+    case KeyOfAvalon:
+        return GDROM;
+        break;
+
+    case MarioKartGP:
+    case MarioKartGP2:
+        return NAND;
+        break;
+  }
+// never reached
+}
+u32 GetGameType(void)
 {
   u64 gameid = 0;
   // Convert game ID into hex
@@ -1372,27 +1429,31 @@ u32 GetGameType( void )
   case 0x53424C4A:
   case 0x53424C4B:
   case 0x53424C4C:
-  // SBHJ/SBHN - VIRTUA STRIKER 4 VER.A
+  // SBHJ/SBHN/SBHZ - VIRTUA STRIKER 4 VER.A
   case 0x5342484A:
   case 0x5342484E:
+  case 0x5342485A:
   // SBJA/SBJJ  - VIRTUA STRIKER 4
   case 0x53424A41:
   case 0x53424A4A:
       m_game_type = VirtuaStriker4;
       break;
-  // SBFX - Key of Avalon
+  // SBFX/SBJN - Key of Avalon
   case 0x53424658:
+  case 0x53424A4E:
       m_game_type = KeyOfAvalon;
       break;
-  // SBGX - Gekitou Pro Yakyuu
+  // SBGX - Gekitou Pro Yakyuu (DIMM Uprade 3.17 shares the same ID)
   case 0x53424758:
       m_game_type = GekitouProYakyuu;
       break;      
   default:
       PanicAlertFmtT("Unknown game ID:{0:08x}, using default controls.", gameid);
-  // GSBJ/G12U - SegaBoot (does not have a boot.id)
+  // GSBJ/G12U/RELS/RELJ - SegaBoot (does not have a boot.id)
   case 0x4753424A:
   case 0x47313255:
+  case 0x52454C53:
+  case 0x52454c4a:
       m_game_type = VirtuaStriker3;
       break;
   }

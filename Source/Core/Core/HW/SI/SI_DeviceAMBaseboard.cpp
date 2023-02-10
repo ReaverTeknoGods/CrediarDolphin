@@ -247,7 +247,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 					case 0x11:
 					{
 						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 11, {:02x} (READ SERIAL NR)", ptr(1));
-						char string[] = "AADE-01A14964511";
+						char string[] = "AADE-01B98394904";
 						res[resp++] = 0x11;
 						res[resp++] = 0x10;
 						memcpy(res + resp, string, 0x10);
@@ -302,19 +302,19 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 			    /* No reply */
 			    case 0x21:
           {
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x21, {:02x}", ptr(1) );
+            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x21, {:02x}", ptr(1));
             resp += ptr(1) + 2;
           } break;
 			    /* No reply */
 			    case 0x22:
           {
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x22, {:02x}", ptr(1) );
+            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x22, {:02x}", ptr(1));
             resp += ptr(1) + 2;
           } break;
-					case 0x23:
+          case 0x23:
+            DEBUG_LOG_FMT(AMBASEBOARDDEBUG,  "GC-AM: Command 0x23, {:02x} {:02x}", ptr(1), ptr(2)  );
 						if( ptr(1) )
 						{
-							NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x23, {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5) );
 							res[resp++] = 0x23;
 							res[resp++] = 0x00;
 						}
@@ -324,10 +324,10 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 							res[resp++] = 0x00;
 						}
 						break;
-					case 0x24:
+          case 0x24:
+            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x24, {:02x} {:02x}", ptr(1), ptr(2));
 						if( ptr(1) )
 						{
-							NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x24, {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5) );
 							res[resp++] = 0x24;
 							res[resp++] = 0x00;
 						}
@@ -351,15 +351,18 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 							NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (SERIAL) Command:{:06x}", cmd );
 
-              // Gekitou Pro Yakyuu 
-              if( cmd == 0x801000 )
+              // Gekitou Pro Yakyuu
+              if( AMBaseboard::GetGameType() == GekitouProYakyuu )
               {
-                res[resp++] = 0x31;
-                res[resp++] = 0x03;
-                res[resp++] = 1;
-                res[resp++] = 2;
-                res[resp++] = 3;
-                break;
+                if( cmd == 0x801000 )
+                {
+                  res[resp++] = 0x31;
+                  res[resp++] = 0x03;
+                  res[resp++] = 1;
+                  res[resp++] = 2;
+                  res[resp++] = 3;
+                  break;
+                }
               }
 
 							// Serial - Wheel

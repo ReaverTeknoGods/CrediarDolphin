@@ -170,6 +170,8 @@ add_library(core
   HW/DSPLLE/DSPLLE.h
   HW/DSPLLE/DSPSymbols.cpp
   HW/DSPLLE/DSPSymbols.h
+	HW/DVD/AMBaseboard.cpp
+	HW/DVD/AMBaseboard.h
   HW/DVD/DVDInterface.cpp
   HW/DVD/DVDInterface.h
   HW/DVD/DVDMath.cpp
@@ -184,6 +186,8 @@ add_library(core
   HW/EXI/EXI_Device.h
   HW/EXI/EXI_DeviceAD16.cpp
   HW/EXI/EXI_DeviceAD16.h
+  HW/EXI/EXI_DeviceAMBaseboard.cpp
+  HW/EXI/EXI_DeviceAMBaseboard.h
   HW/EXI/EXI_DeviceAGP.cpp
   HW/EXI/EXI_DeviceAGP.h
   HW/EXI/EXI_DeviceDummy.cpp
@@ -245,6 +249,8 @@ add_library(core
   HW/ProcessorInterface.h
   HW/SI/SI_Device.cpp
   HW/SI/SI_Device.h
+  HW/SI/SI_DeviceAMBaseboard.cpp
+  HW/SI/SI_DeviceAMBaseboard.h
   HW/SI/SI_DeviceDanceMat.cpp
   HW/SI/SI_DeviceDanceMat.h
   HW/SI/SI_DeviceGBA.cpp
