@@ -214,27 +214,28 @@ void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
 				break;
 			// Clear IRQ
       case AMBB_ISR_READ:
-        DEBUG_LOG_FMT(SP1, "AM-BB COMMAND: ISRRead :{:02x} {:02x}", m_command[1], m_command[2]);	
+        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: ISRRead :{:02x} {:02x}", m_command[1], m_command[2]);	
 				_byte = 0x04;
 				break;
 			// Unknown
       case AMBB_UNKNOWN:
-        DEBUG_LOG_FMT(SP1, "AM-BB COMMAND: 0x83 :{:02x} {:02x}", m_command[1], m_command[2]);	
+        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: 0x83 :{:02x} {:02x}", m_command[1], m_command[2]);	
 				_byte = 0x04;
 				break;
 			// Unknown - 2 byte out
       case AMBB_IMR_READ:
-        DEBUG_LOG_FMT(SP1, "AM-BB COMMAND: IMRRead :{:02x} {:02x}", m_command[1], m_command[2]);	
+        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: IMRRead :{:02x} {:02x}", m_command[1], m_command[2]);	
 				_byte = 0x04;
 				break;
 			// Unknown
       case AMBB_IMR_WRITE:
-        DEBUG_LOG_FMT(SP1, "AM-BB COMMAND: IMRWrite :{:02x} {:02x}", m_command[1], m_command[2]);	
+        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: IMRWrite :{:02x} {:02x}", m_command[1], m_command[2]);	
 				_byte = 0x04;
 				break;
 			// Unknown
 			case 0xFF:
-        DEBUG_LOG_FMT(SP1, "AM-BB COMMAND: LANCNTWrite :{:02x} {:02x}", m_command[1], m_command[2]);	
+        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: LANCNTWrite :{:02x} {:02x}", m_command[1],
+                       m_command[2]);	
 				if( (m_command[1] == 0) && (m_command[2] == 0) )
 				{
 					m_have_irq = true;

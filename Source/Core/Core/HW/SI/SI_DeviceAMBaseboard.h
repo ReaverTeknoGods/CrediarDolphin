@@ -77,10 +77,8 @@ private:
   u32 m_wheelinit;
 
   u32 m_motorinit;
-  u8 m_motorreply[6];
-  u32 m_motorforce;
-  s16 m_motorforce_x;
-  s16 m_motorforce_y;
+  u8 m_motorreply[64];
+  s16 m_motorforce_x; 
 
   u32 m_tri_game = 0;
 

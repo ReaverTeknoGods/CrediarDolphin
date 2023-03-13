@@ -131,7 +131,7 @@ std::string GenerateChangelog(const picojson::array& versions)
   return changelog;
 }
 }  // namespace
-
+#undef AUTOUPDATE
 bool AutoUpdateChecker::SystemSupportsAutoUpdates()
 {
 #if defined(AUTOUPDATE) && defined(OS_SUPPORTS_UPDATER)

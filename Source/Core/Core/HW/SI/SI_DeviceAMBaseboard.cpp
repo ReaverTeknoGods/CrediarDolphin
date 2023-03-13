@@ -144,9 +144,7 @@ CSIDevice_AMBaseboard::CSIDevice_AMBaseboard(SIDevices device, int device_number
   m_wheelinit = 0;
 
   m_motorinit = 0;
-  m_motorforce = 0;
-  m_motorforce_x = 0;
-  m_motorforce_y = 0;
+  m_motorforce_x = 0; 
 
   m_tri_game = 0;
 
@@ -219,40 +217,41 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 #define ptr(x) _pBuffer[(p + x)]
 				while (p < real_len+2)
 				{
-					switch (ptr(0))
-					{
-					case 0x10:
-					{
-						DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 10, {:02x} (READ STATUS&SWITCHES)", ptr(1));
-						GCPadStatus PadStatus;
-            PadStatus = Pad::GetStatus( ISIDevice::m_device_number );
-						res[resp++] = 0x10;
-						res[resp++] = 0x2;
+          switch (ptr(0))
+          {
+          case 0x10:
+          {
+            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 10, {:02x} (READ STATUS&SWITCHES)",
+                          ptr(1));
+            GCPadStatus PadStatus;
+            PadStatus = Pad::GetStatus(ISIDevice::m_device_number);
+            res[resp++] = 0x10;
+            res[resp++] = 0x2;
 
-						/*baseboard test/service switches ???, disabled for a while
-						if (PadStatus.button & PAD_BUTTON_Y)	// Test
-							d10_0 &= ~0x80;
-						if (PadStatus.button & PAD_BUTTON_X)	// Service
-							d10_0 &= ~0x40;
-						*/
+            /*baseboard test/service switches ???, disabled for a while
+            if (PadStatus.button & PAD_BUTTON_Y)	// Test
+              d10_0 &= ~0x80;
+            if (PadStatus.button & PAD_BUTTON_X)	// Service
+              d10_0 &= ~0x40;
+            */
 
             // Horizontal Scanning Frequency switch
             // Required for F-Zero AX booting via Sega Boot
             d10_0 &= ~0x20;
 
-						res[resp++] = d10_0;
-						res[resp++] = d10_1;
-						break;
-					}
-					case 0x11:
-					{
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 11, {:02x} (READ SERIAL NR)", ptr(1));
-						char string[] = "AADE-01B98394904";
-						res[resp++] = 0x11;
-						res[resp++] = 0x10;
-						memcpy(res + resp, string, 0x10);
-						resp += 0x10;
-						break;
+            res[resp++] = d10_0;
+            res[resp++] = d10_1;
+            break;
+          }
+          case 0x11:
+          {
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 11, {:02x} (READ SERIAL NR)", ptr(1));
+            char string[] = "AADE-01B98394904";
+            res[resp++] = 0x11;
+            res[resp++] = 0x10;
+            memcpy(res + resp, string, 0x10);
+            resp += 0x10;
+            break;
           }
           case 0x12:
             NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 12, {:02x} {:02x}", ptr(1), ptr(2));
@@ -264,97 +263,120 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
             res[resp++] = 0x14;
             res[resp++] = 0x00;
             break;
-					case 0x15: 
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 15, {:02x} (READ FIRM VERSION)", ptr(1));
-						res[resp++] = 0x15;
+          case 0x15:
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 15, {:02x} (READ FIRM VERSION)", ptr(1));
+            res[resp++] = 0x15;
             res[resp++] = 0x02;
             // FIRM VERSION
             // 00.26
             res[resp++] = 0x00;
             res[resp++] = 0x26;
-						break;
-					case 0x16:
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 16, {:02x} (READ FPGA VERSION)", ptr(1));
-						res[resp++] = 0x16;
+            break;
+          case 0x16:
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 16, {:02x} (READ FPGA VERSION)", ptr(1));
+            res[resp++] = 0x16;
             res[resp++] = 0x02;
             // FPGA VERSION
             // 07.06
             res[resp++] = 0x07;
-            res[resp++] = 0x06; 
-						break;
-					case 0x1f:
-					{
+            res[resp++] = 0x06;
+            break;
+          case 0x1f:
+          {
             // Only used by SegaBoot for region checks (dev mode skips this check)
-						NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 1f, {:02x} {:02x} {:02x} {:02x} {:02x} (REGION)", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5));
-						unsigned char string[] =  
-							"\x00\x00\x30\x00"
-							//"\x01\xfe\x00\x00" // JAPAN
-							//"\x02\xfd\x00\x00" // USA
-							"\x03\xfc\x00\x00" // export
-							"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff";
-						res[resp++] = 0x1f;
-						res[resp++] = 0x14;
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG,
+                           "GC-AM: Command 1f, {:02x} {:02x} {:02x} {:02x} {:02x} (REGION)", ptr(1),
+                           ptr(2), ptr(3), ptr(4), ptr(5));
+            unsigned char string[] = "\x00\x00\x30\x00"
+                                     //"\x01\xfe\x00\x00" // JAPAN
+                                     //"\x02\xfd\x00\x00" // USA
+                                     "\x03\xfc\x00\x00"  // export
+                                     "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff";
+            res[resp++] = 0x1f;
+            res[resp++] = 0x14;
 
-						for( int i=0; i<0x14; ++i )
-							res[resp++] = string[i];
+            for (int i = 0; i < 0x14; ++i)
+              res[resp++] = string[i];
             p += 5;
-					} break;
-			    /* No reply */
-			    case 0x21:
+          }
+          break;
+          /* No reply */
+          case 0x21:
           {
-            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x21, {:02x}", ptr(1));
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x21, {:02x}", ptr(1));
             resp += ptr(1) + 2;
-          } break;
-			    /* No reply */
-			    case 0x22:
+          }
+          break;
+          /* No reply */
+          case 0x22:
           {
-            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x22, {:02x}", ptr(1));
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x22, {:02x}", ptr(1));
             resp += ptr(1) + 2;
-          } break;
+          }
+          break;
           case 0x23:
-            DEBUG_LOG_FMT(AMBASEBOARDDEBUG,  "GC-AM: Command 0x23, {:02x} {:02x}", ptr(1), ptr(2)  );
-						if( ptr(1) )
-						{
-							res[resp++] = 0x23;
-							res[resp++] = 0x00;
-						}
-						else
-						{
-							res[resp++] = 0x23;
-							res[resp++] = 0x00;
-						}
-						break;
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x23, {:02x} {:02x}", ptr(1), ptr(2));
+            if (ptr(1))
+            {
+              res[resp++] = 0x23;
+              res[resp++] = 0x00;
+            }
+            else
+            {
+              res[resp++] = 0x23;
+              res[resp++] = 0x00;
+            }
+            break;
           case 0x24:
-            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x24, {:02x} {:02x}", ptr(1), ptr(2));
-						if( ptr(1) )
-						{
-							res[resp++] = 0x24;
-							res[resp++] = 0x00;
-						}
-						else
-						{
-							res[resp++] = 0x24;
-							res[resp++] = 0x00;
-						}
-						break;
-					case 0x31:
-					//	NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (MOTOR) {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5));
+            NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 0x24, {:02x} {:02x}", ptr(1), ptr(2));
+            if (ptr(1))
+            {
+              res[resp++] = 0x24;
+              res[resp++] = 0x00;
+            }
+            else
+            {
+              res[resp++] = 0x24;
+              res[resp++] = 0x00;
+            }
+            break;
+          case 0x31:
+          {
+            // NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 {:02x} {:02x} {:02x} {:02x}
+            // {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5));
 
-						// Command Length
-						if( ptr(1) )
-						{
-							// All commands are OR'd with 0x80
-							// Last byte (ptr(5)) is checksum which we don't care about
-							u32 cmd =(ptr(2)^0x80) << 16;
-									cmd|= ptr(3) << 8;
-									cmd|= ptr(4);
+            u32 cmd_off = 0;
+            // Command Length
+            while (cmd_off < ptr(1))
+            {
+              // All commands are OR'd with 0x80
+              // Last byte (ptr(5)) is checksum which we don't care about
+              u32 cmd = 0;
+              if (AMBaseboard::GetGameType() == FZeroAX)
+              {
+                cmd =  ptr(cmd_off + 2) << 24;
+                cmd |= ptr(cmd_off + 3) << 16;
+                cmd |= ptr(cmd_off + 4) << 8;
+                cmd |= ptr(cmd_off + 5);
+                cmd ^= 0x80000000;
 
-							NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (SERIAL) Command:{:06x}", cmd );
+                NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (MOTOR) Length:{:02x} Command:{:08x}", ptr(1), cmd );
+              }
+              else
+              {
+                cmd = (ptr(2) ^ 0x80) << 16;
+                cmd |= ptr(3) << 8;
+                cmd |= ptr(4);
+
+                NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (SERIAL) Command:{:06x}", cmd);
+              }
+
+              cmd_off += 4;
 
               // Gekitou Pro Yakyuu
-              if( AMBaseboard::GetGameType() == GekitouProYakyuu )
+              if (AMBaseboard::GetGameType() == GekitouProYakyuu)
               {
-                if( cmd == 0x801000 )
+                if (cmd == 0x801000)
                 {
                   res[resp++] = 0x31;
                   res[resp++] = 0x03;
@@ -365,75 +387,93 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                 }
               }
 
-							// Serial - Wheel
-					    if( cmd == 0x7FFFFF )
-					    {
-						    res[resp++] = 0x31;
-						    res[resp++] = 0x03;
-				
-						    res[resp++] = 'C';
-						    res[resp++] = '0';
+              // Serial - Wheel
+              if (cmd == 0x7FFFFF)
+              {
+                res[resp++] = 0x31;
+                res[resp++] = 0x03;
 
-								if( m_wheelinit == 0 )
-						    {
-							    res[resp++] = '1';
-									m_wheelinit = 1;
-						    }
+                res[resp++] = 'C';
+                res[resp++] = '0';
+
+                if (m_wheelinit == 0)
+                {
+                  res[resp++] = '1';
+                  m_wheelinit = 1;
+                }
                 else
                 {
-							    res[resp++] = '6';
-						    }
-					    }
-							
-							// Serial - Motor
-							m_motorreply[0] = 0x31;
-							m_motorreply[1] = 0x04;
+                  res[resp++] = '6';
+                }
+              }
+               
+              if (AMBaseboard::GetGameType() == FZeroAX)
+              {
+                // Status
+                m_motorreply[cmd_off + 2] = 0;
+                m_motorreply[cmd_off + 3] = 0;
 
-							// Status
-							m_motorreply[2] = 0;	
-							m_motorreply[3] = 0;
-							// error
-							m_motorreply[4] = 0;	
+                // error
+                m_motorreply[cmd_off + 4] = 0;
 
-							switch(cmd>>16)
-							{
-								case 0x00:
-									if( cmd == 0 )
-										m_motorforce = 0;
-									break;
-								case 0x04:
-									m_motorforce	= 1;
-									m_motorforce_x	= (s16)(cmd<<4);
-									m_motorforce_y  = m_motorforce_x;
-									break;
-								case 0x70:
-									m_motorforce = 0;
-									break;
-								case 0x7A:
-									m_motorforce	= 1;
-									m_motorforce_x	= (s16)(cmd & 0xFFFF);
-									m_motorforce_y  = m_motorforce_x;
-									break;
-								default:
-									break;
-							}
+                switch (cmd >> 24)
+                {
+                  case 0:
+                    break;
+                  case 1: 
+                    break;
+                  case 2: 
+                    break;
+                  case 4: // Move Steering Wheel
+                    // Left
+                    if( cmd & 0x010000 )
+                    {
+                      m_motorforce_x = -((s16)cmd & 0xFF00);
+                    }
+                    else // Right
+                    {
+                      m_motorforce_x = cmd & 0xFF00;
+                    }
+                    break;
+                  case 6:  // nice
+                  case 9:
+                  default:
+                    break;
+                  case 7:
+                  // switch back to normal controls
+                    m_motorinit = 2; 
+                    break;
+                  // reset
+                  case 0x7F:
+                    m_motorinit = 1;
+                    memset( m_motorreply, 0, sizeof(m_motorreply) );
+                    break;
+                }
 
-							//Checksum
-							m_motorreply[5] = m_motorreply[2] ^ m_motorreply[3] ^ m_motorreply[4];
-							resp += 6;
+                // Checksum
+                m_motorreply[cmd_off + 5] = m_motorreply[cmd_off + 2] ^ m_motorreply[cmd_off + 3] ^ m_motorreply[cmd_off + 4];
+              }
+            }
 
-						} else {
-							if( m_motorreply[0] )
-							{
-								memcpy( res+resp, m_motorreply, sizeof(m_motorreply) );
-								resp += sizeof(m_motorreply);
-							} else {
-								res[resp++] = 0x31;
-								res[resp++] = 0x00;
-							}
-						
-						}
-						break;
+            if( ptr(1) == 0 )
+            { 
+              res[resp++] = 0x31;
+              res[resp++] = 0x00; 
+            }
+            else
+            {
+              if (m_motorinit)
+              {
+                // Motor
+                m_motorreply[0] = 0x31;
+                m_motorreply[1] = ptr(1);  // Same Out as In size
+
+                memcpy(res + resp, m_motorreply, m_motorreply[1] + 2 );
+                resp += m_motorreply[1] + 2;
+              }
+            }
+          }
+          break;
 					case 0x32:
 					//	NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 32 (CARD-Interface)");
 						if( ptr(1) )
@@ -676,8 +716,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 										case 0x33000000:
 										{
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Read");
-											m_card_command = CARD_READ;
-
+											m_card_command = CARD_READ; 
 											//Prepare read packet
 											memset( m_card_read_packet, 0, 0xDB );
 											u32 POff=0;
@@ -1148,22 +1187,25 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								case 0x22:
 								{
 									msg.addData(1);	// status
+
                   int analogs = *jvs_io++;
                   GCPadStatus PadStatus;
                   GCPadStatus PadStatus2;
                   PadStatus = Pad::GetStatus(0);
 
+                  DEBUG_LOG_FMT( AMBASEBOARDDEBUG, "JVS-IO:Get Analog Inputs Analogs:{}", analogs );
+
                   switch( AMBaseboard::GetGameType() )
 									{
                     case FZeroAX:
 											// Steering
-											if( m_motorforce )
+                      if( m_motorinit == 1 )
 											{
 												msg.addData( m_motorforce_x >> 8 );
 												msg.addData( m_motorforce_x & 0xFF );
 
-												msg.addData( m_motorforce_y >> 8);
-												msg.addData( m_motorforce_y & 0xFF );
+                        msg.addData(PadStatus.stickY);
+                        msg.addData((u8)0);
 											}
 											else
 											{
@@ -1220,6 +1262,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											msg.addData((u8)0);
 											break;
 									}
+                  break;
 								}
 								// Decrease Coin count
 								case 0x30:

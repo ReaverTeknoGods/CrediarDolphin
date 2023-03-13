@@ -151,10 +151,10 @@ unsigned char JPEG[2712] =
 namespace AMBaseboard
 {
 
-static u32 NAMCAMInit = 0;
 static u32 m_game_type = 0;
 static u32 FIRMWAREMAP = 0;
 static u32 m_segaboot = 0;
+static u32 m_v2_dma_adr = 0;
 static u32 Timeouts[3] = {20000, 20000, 20000};
 
 static u32 GCAMKeyA;
@@ -170,7 +170,7 @@ static File::IOFile* m_dimm = nullptr;
 unsigned char* m_dimm_disc = nullptr;
 
 static unsigned char firmware[2*1024*1024];
-static unsigned char media_buffer[0x60];
+static unsigned char media_buffer[0x300];
 static unsigned char network_command_buffer[0x4FFE00];
 static unsigned char network_buffer[64*1024];
 
@@ -188,7 +188,7 @@ static inline void PrintMBBuffer( u32 Address, u32 Length )
 
 	for( u32 i=0; i < Length; i+=0x10 )
 	{
-		DEBUG_LOG_FMT(DVDINTERFACE, "GC-AM: {:08x} {:08x} {:08x} {:08x}",	memory.Read_U32(Address+i),
+    NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: {:08x} {:08x} {:08x} {:08x}", memory.Read_U32(Address + i),
 																                            memory.Read_U32(Address+i+4),
 																                            memory.Read_U32(Address+i+8),
 																                            memory.Read_U32(Address+i+12) );
@@ -215,7 +215,6 @@ void Init(void)
   memset(network_command_buffer, 0, sizeof(network_command_buffer));
   memset(firmware, -1, sizeof(firmware));
 
-  NAMCAMInit = 0;
   m_game_type = 0;
   m_segaboot = 0;
   FIRMWAREMAP = 0;
@@ -371,18 +370,13 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
  
 	INFO_LOG_FMT(DVDINTERFACE, "GCAM: {:08x} {:08x} DMA=addr:{:08x},len:{:08x} Keys: {:08x} {:08x} {:08x}",
                                 Command, Offset, Address, Length, GCAMKeyA, GCAMKeyB, GCAMKeyC );
-  //if (Address == 0x01300000)
-  //{
-  //  INFO_LOG_FMT(DVDINTERFACE, "GCAM: PC:{:08x}", PC);
-  //  PowerPC::breakpoints.Add( PC, false );
-  //}
 
   // Test menu exit to sega boot
   //if (Offset == 0x0002440 && Address == 0x013103a0 )
   //{
   //  FIRMWAREMAP = 1;
   //}
-   
+  
 	switch(Command>>24)
 	{
 		// Inquiry
@@ -431,12 +425,21 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
           memory.Write_U32(Common::swap32( (u32)0x01FA ), Address);
           break;
 				// Firmware status (2)
-        case 0x80000140: 
-					memory.Write_U32( Common::swap32( (u32)1 ), Address);
-					break;
+        case 0x80000140:
+          memory.Write_U32(Common::swap32((u32)1), Address);
+          break;
+        case 0x80000160:
+          memory.Write_U32( 0x00001E00, Address);
+          break;
+        case 0x80000180:
+          memory.Write_U32( 0, Address);
+          break;
+        case 0x800001A0:
+          memory.Write_U32( 0xFFFFFFFF , Address);
+          break;
 				default:
 					PrintMBBuffer( Address, Length );
-					PanicAlertFmtT("Unhandled Media Board Read:{0:08x}", Address);
+          PanicAlertFmtT("Unhandled Media Board Read:{0:08x}", Offset);
 					break;
 				}
 				return 0;
@@ -500,7 +503,7 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
         memcpy(memory.GetPointer(Address), network_buffer + dimmoffset, Length);
         return 0;
       }
-
+      
 			// DIMM command (V2)
 			if( (Offset >= 0x84000000) && (Offset <= 0x8400005F) )
 			{
@@ -510,6 +513,42 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 				NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Read MEDIA BOARD COMM AREA (2) ({:08x})", dimmoffset );
 				PrintMBBuffer( Address, Length );
 				return 0;
+      }
+
+      // DIMM command (V2)
+      if( Offset == 0x88000000 )
+      {
+        u32 dimmoffset = Offset - 0x88000000;
+
+        memset(media_buffer, 0, 0x20);
+
+        INFO_LOG_FMT(DVDINTERFACE, "GC-AM: Execute command:{:03X}", *(u16*)(media_buffer + 0x202));
+
+        switch( *(u16*)(media_buffer + 0x202) )
+        {
+          case 1:
+            *(u32*)(media_buffer) = 0x1FFF8000;
+            break;
+          default:
+            break;
+        }
+
+        memcpy( memory.GetPointer(Address), media_buffer + dimmoffset, Length );
+
+        NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Read MEDIA BOARD COMM AREA (?) ({:08x})", dimmoffset);
+        PrintMBBuffer(Address, Length);
+        return 0;
+      }
+
+      // DIMM command (V2)
+      if ((Offset >= 0x89000000) && (Offset <= 0x89000200))
+      {
+        u32 dimmoffset = Offset - 0x89000000;
+        memcpy(memory.GetPointer(Address), media_buffer + dimmoffset, Length);
+
+        NOTICE_LOG_FMT(DVDINTERFACE, "GC-AM: Read MEDIA BOARD COMM AREA (3) ({:08x})", dimmoffset);
+        PrintMBBuffer(Address, Length);
+        return 0;
       }
 
 			// DIMM memory (8MB)
@@ -663,6 +702,17 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 
         u8 cmd_flag = memory.Read_U8(Address);
 
+        if (dimmoffset == 0x20 && cmd_flag != 0 )
+        {
+          m_v2_dma_adr = Address;
+        }
+
+        //if (dimmoffset == 0x40 && cmd_flag == 0)
+        //{
+        //  INFO_LOG_FMT(DVDINTERFACE, "GCAM: PC:{:08x}", PC);
+        //  PowerPC::breakpoints.Add( PC+8, false );
+        //}
+
 				if( dimmoffset == 0x40 && cmd_flag == 1 )
         { 
           // Recast for easier access
@@ -674,10 +724,15 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 					INFO_LOG_FMT(DVDINTERFACE, "GC-AM: Execute command:{:03X}", media_buffer_in_16[1] );
 					
 					memset(media_buffer, 0, 0x20);
-          media_buffer_out_16[0] = media_buffer_in_16[0];
 
-          // Command
-          media_buffer_out_16[1] = media_buffer_in_16[1] | 0x8000;  // Set command okay flag
+          media_buffer_out_32[0] = media_buffer_in_32[0] | 0x80000000;  // Set command okay flag
+
+          for (u32 i = 0; i < 0x20; i += 4)
+          {
+            *(u32*)(media_buffer + 0x40 + i) = *(u32*)(media_buffer);
+          }
+
+          //memory.Write_U8( 0xA9, m_v2_dma_adr + 0x20 );
 
 					switch (media_buffer_in_16[1])
           {
@@ -685,29 +740,30 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
           case 0x000:
             media_buffer_out_32[1] = 1;
             break;
-          // DIMM size
+          // NAND size
           case 0x001:
-            media_buffer_out_32[1] = 0x20000000;
+            media_buffer_out_32[1] = 0x1FFF8000;
             break;
+          // Loading Progress
 					case 0x100:
 						// Status
             media_buffer_out_32[1] = 5;
 						// Progress in %
             media_buffer_out_32[2] = 100;
             break;
-          // SegaBoot version: 3.11
+          // SegaBoot version: 3.09
           case 0x101:
             // Version
-            media_buffer_out_16[2] = Common::swap16(0x1103);
+            media_buffer_out_16[2] = Common::swap16(0x0309);
             // Unknown
-            media_buffer_out_16[3] = 1;
-            media_buffer_out_32[2] = 1;
+            media_buffer_out_16[3] = 2;
+            media_buffer_out_32[2] = 0x4746; // "GF" 
             media_buffer_out_32[4] = 0xFF;
             break;
           // System flags
           case 0x102:
             // 1: GD-ROM
-            media_buffer[4] = 1;
+            media_buffer[4] = 0;
             media_buffer[5] = 1;
             // enable development mode (Sega Boot)
             // This also allows region free booting
@@ -725,7 +781,7 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
               7: N/A
               8: Unknown
             */
-            // media_buffer[7] = 0;
+            media_buffer[7] = 1;
             break;
           // Media board serial
           case 0x103:
@@ -736,10 +792,6 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
             break;
           }
 
-          for ( u32 i=0; i<0x20; i+=4)
-          {
-            *(u32*)(media_buffer + 0x40 + i) = *(u32*)(media_buffer);
-          }
 
           memset(media_buffer + 0x20, 0, 0x20 );
           return 0;
@@ -750,6 +802,18 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
         }
         return 0;
 			}
+
+      // DIMM command, used when inquiry returns 0x29000000
+      if ((Offset >= 0x89000000) && (Offset <= 0x89000200))
+      {
+        u32 dimmoffset = Offset - 0x89000000;
+        INFO_LOG_FMT(DVDINTERFACE, "GC-AM: Write MEDIA BOARD COMM AREA (3) ({:08x})", dimmoffset );
+        PrintMBBuffer(Address, Length);
+
+        memcpy(media_buffer + dimmoffset, memory.GetPointer(Address), Length);
+
+        return 0;
+      }
 
       // Firmware Write
       if ((Offset >= 0x84800000) && (Offset <= 0x84818000))
@@ -851,7 +915,7 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 						// Unknown
             media_buffer_out_16[3] = 1;
             media_buffer_out_32[2] = 1;
-            media_buffer_out_32[8] = 0xFFFFFFFF;
+            media_buffer_out_32[4] = 0xFF;
 						break;
 					// System flags
           case 0x102:
@@ -1069,16 +1133,6 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
             u32 fd  = media_buffer_in_32[2];
             u32 off = media_buffer_in_32[3];
             u16 len = media_buffer_in_32[4];
-            							
-            //if( NAMCAMInit == 1 )
-            //{
-            //  memcpy( network_buffer, JPEG, sizeof(JPEG) );
-
-            //  *(u32*)(media_buffer+0x04) = sizeof(JPEG);
-
-            //  NAMCAMInit = 2;
-            //  break;
-            //}
 
             int ret = 0; 
             char* buffer = (char*)(network_buffer+off);
@@ -1135,15 +1189,6 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
             u32 fd     = media_buffer_in_32[2];
             u32 offset = media_buffer_in_32[3];
             u32 len    = media_buffer_in_32[4];
-
-            // Fake NAMCAN request
-						//if( len == 26 )
-						//{
-						//	NAMCAMInit = 1;
-            // *(u32*)(media_buffer + 0x04) = (len);
-						//	//ERROR_LOG_FMT(DVDINTERFACE, "GC-AM: NAMCAM HTTP request\n");
-            //  break;
-						//}
             
             int ret = 0;
 
@@ -1204,9 +1249,7 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
             fd_set* readfds  = &readfds_;     
             fd_set* writefds = &writefds_;
 
-
             // Either of these can be zero but select still expects two inputs
-
             if (media_buffer_in_32[3])
             {
               readfds = (fd_set*)(network_command_buffer + NOffsetA);

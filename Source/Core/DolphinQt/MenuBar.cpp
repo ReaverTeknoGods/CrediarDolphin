@@ -575,19 +575,19 @@ void MenuBar::AddHelpMenu()
   });
   QAction* github = help_menu->addAction(tr("&GitHub Repository"));
   connect(github, &QAction::triggered, this, []() {
-    QDesktopServices::openUrl(QUrl(QStringLiteral("https://github.com/dolphin-emu/dolphin")));
+    QDesktopServices::openUrl(QUrl(QStringLiteral("https://crediar.dev/crediar/dolphin")));
   });
   QAction* bugtracker = help_menu->addAction(tr("&Bug Tracker"));
   connect(bugtracker, &QAction::triggered, this, []() {
     QDesktopServices::openUrl(
-        QUrl(QStringLiteral("https://bugs.dolphin-emu.org/projects/emulator")));
+        QUrl(QStringLiteral("https://crediar.dev/crediar/dolphin/-/issues")));
   });
 
   if (AutoUpdateChecker::SystemSupportsAutoUpdates())
   {
     help_menu->addSeparator();
 
-    help_menu->addAction(tr("&Check for Updates..."), this, &MenuBar::InstallUpdateManually);
+    //help_menu->addAction(tr("&Check for Updates..."), this, &MenuBar::InstallUpdateManually);
   }
 
 #ifndef __APPLE__
