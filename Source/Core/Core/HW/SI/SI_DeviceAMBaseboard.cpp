@@ -146,19 +146,7 @@ CSIDevice_AMBaseboard::CSIDevice_AMBaseboard(SIDevices device, int device_number
   m_motorinit = 0;
   m_motorforce_x = 0; 
 
-  m_tri_game = 0;
-
   memset( m_motorreply, 0, sizeof( m_motorreply ) );
-  
-	u64 gameid = 0;
-  
-  sscanf(SConfig::GetInstance().GetGameID().c_str(), "%s", (char*)&gameid);
- 
-  // This is checking for the real game IDs (not those people made up) (See boot.id within the game)
-  if (Common::swap32(gameid) == 0x53424841 || Common::swap32(gameid) == 0x53424747)  // F-Zero AX
-  {
-    m_tri_game = 1;
-  }
 }
 
 constexpr u32 SI_XFER_LENGTH_MASK = 0x7f;
@@ -342,8 +330,70 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
             break;
           case 0x31:
           {
-            // NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 {:02x} {:02x} {:02x} {:02x}
-            // {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5));
+            //NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 {:02x} {:02x} {:02x} {:02x} {:02x}", ptr(1), ptr(2), ptr(3), ptr(4), ptr(5) );
+
+            if (ptr(1))
+            {
+              // Serial - Wheel
+              if (AMBaseboard::GetGameType() == MarioKartGP || AMBaseboard::GetGameType() == MarioKartGP2)
+              {
+                NOTICE_LOG_FMT(AMBASEBOARDDEBUG,
+                               "GC-AM: Command 31 (WHEEL) {:02x}{:02x} {:02x}{:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}",
+                               ptr(2), ptr(3), ptr(4), ptr(5), ptr(6), ptr(7), ptr(8), ptr(9), ptr(10), ptr(11) );
+
+                res[resp++] = 0x31;
+                res[resp++] = 0x03;
+
+                switch (m_wheelinit)
+                {
+                  case 0:
+                    res[resp++] = 'E'; // Error
+                    res[resp++] = '0';
+                    res[resp++] = '0';
+                    m_wheelinit++;
+                    break;
+                  case 1:
+                    res[resp++] = 'C'; // Power Off
+                    res[resp++] = '0';
+                    res[resp++] = '6';
+                    m_wheelinit++;
+                    break;
+                  case 2:
+                    res[resp++] = 'C'; // Power On
+                    res[resp++] = '0';
+                    res[resp++] = '1';
+                    break;
+                  default:
+                    break;
+                  }
+                  /*
+                  u16 CenteringForce= ptr(6);
+                  u16 FrictionForce = ptr(8);
+                  u16 Roll          = ptr(10);
+                  */
+                break;
+              }
+
+              // Serial Unknown
+              if (AMBaseboard::GetGameType() == GekitouProYakyuu)
+              {
+                u32 cmd =  ptr(2) << 24;
+                    cmd |= ptr(3) << 16;
+                    cmd |= ptr(4) << 8;
+                    cmd |= ptr(5);
+
+                if( cmd == 0x00100000 )
+                {
+                    res[resp++] = 0x31;
+                    res[resp++] = 0x03;
+                    res[resp++] = 1;
+                    res[resp++] = 2;
+                    res[resp++] = 3;
+                    break;
+                }
+                break;
+              }
+            }
 
             u32 cmd_off = 0;
             // Command Length
@@ -372,40 +422,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
               }
 
               cmd_off += 4;
-
-              // Gekitou Pro Yakyuu
-              if (AMBaseboard::GetGameType() == GekitouProYakyuu)
-              {
-                if (cmd == 0x801000)
-                {
-                  res[resp++] = 0x31;
-                  res[resp++] = 0x03;
-                  res[resp++] = 1;
-                  res[resp++] = 2;
-                  res[resp++] = 3;
-                  break;
-                }
-              }
-
-              // Serial - Wheel
-              if (cmd == 0x7FFFFF)
-              {
-                res[resp++] = 0x31;
-                res[resp++] = 0x03;
-
-                res[resp++] = 'C';
-                res[resp++] = '0';
-
-                if (m_wheelinit == 0)
-                {
-                  res[resp++] = '1';
-                  m_wheelinit = 1;
-                }
-                else
-                {
-                  res[resp++] = '6';
-                }
-              }
+               
+               
                
               if (AMBaseboard::GetGameType() == FZeroAX)
               {
@@ -485,7 +503,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									res[resp++] = 0x32;
 									u32 ReadLength = m_card_read_length - m_card_read;		
 
-                  if( m_tri_game == 1 )
+                  if (AMBaseboard::GetGameType() == FZeroAX)
                   {
                     if( ReadLength > 0x2F )
                         ReadLength = 0x2F;
@@ -561,7 +579,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                   break;
                 case CARD_EJECT:
                   res[resp++] = 0x80;  // 0x01
-                  if (m_tri_game == 1)
+                  if (AMBaseboard::GetGameType() == FZeroAX)
                   {
                       res[resp++] = 0x01;  // 0x02
                   }
@@ -657,7 +675,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       //  }
                       //}
 
-                      if( m_tri_game == 1 && m_card_memory_size )
+                      if (AMBaseboard::GetGameType() == FZeroAX && m_card_memory_size)
 											{
 												m_card_state_call_count++;
 												if( m_card_state_call_count > 10 )
@@ -683,7 +701,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 												{
 													m_card_memory_size = (u32)File::GetSize(card_filename);
 													if( m_card_memory_size )
-                            if( m_tri_game == 1 )
+                            if (AMBaseboard::GetGameType() == FZeroAX)
                             {
                               m_card_bit = 2;
                             }
@@ -809,7 +827,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 										case 0x80000000:
                       NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Eject");
 											m_card_command	= CARD_EJECT;
-                      if( m_tri_game != 1 )
+                      if (AMBaseboard::GetGameType() != FZeroAX)
                       {
                         m_card_bit = 0;
                       }
@@ -817,7 +835,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 										case 0xD0000000:
                       NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD UnknownD0");
                       m_card_command = CARD_SET_SHUTTER;
-                      if( m_tri_game != 1 )
+                      if (AMBaseboard::GetGameType() != FZeroAX)
                       {
                         m_card_bit = 0;
                       }
@@ -885,7 +903,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 								switch (cmd)
 								{
-								// read ID data
+								// ID data
 								case 0x10:
 									msg.addData(1);
                   switch (AMBaseboard::GetGameType())
@@ -903,23 +921,23 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                   }
 									msg.addData(0);
 									break;
-								// get command format revision
+								// Command format revision
 								case 0x11:
 									msg.addData(1);
 									msg.addData(0x11);
 									break;
-								// get JVS revision
+								// JVS revision
 								case 0x12:
 									msg.addData(1);
 									msg.addData(0x20);
 									break;
-								// get supported communications versions
+								// Supported communications versions
 								case 0x13:
 									msg.addData(1);
 									msg.addData(0x10);
 									break;
 
-								// get slave features
+								// Slave features
 								/*
 									0x01: Player count, Bit per channel
 									0x02: Coin slots

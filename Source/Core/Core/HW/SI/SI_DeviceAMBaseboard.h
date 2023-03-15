@@ -72,15 +72,13 @@ private:
   u32 m_card_read;
   u32 m_card_bit;
   u32 m_card_state_call_count;
-  u8 m_card_offset = 0;
+  u8  m_card_offset;
 
   u32 m_wheelinit;
 
   u32 m_motorinit;
   u8 m_motorreply[64];
-  s16 m_motorforce_x; 
-
-  u32 m_tri_game = 0;
+  s16 m_motorforce_x;
 
 public:
   // constructor
