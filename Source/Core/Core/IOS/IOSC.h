@@ -129,6 +129,7 @@ public:
   {
     Retail,
     RVT,
+    RVA,
   };
 
   // We use the same default key handle IDs as the actual IOSC because there are ioctlvs

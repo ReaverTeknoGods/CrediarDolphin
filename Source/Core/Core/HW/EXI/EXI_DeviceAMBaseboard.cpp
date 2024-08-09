@@ -1,6 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
-// Refer to the license.txt file included.
+// Copyright 2017 Dolphin Emulator Project
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 
 #include "Core/BootManager.h"
@@ -189,24 +188,23 @@ void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
 		{
 			switch (m_command[0])
 			{
-			case 0x01:
+      case AMBB_OFFSET_SET:
 				m_backoffset = (m_command[1] << 8) | m_command[2];
 				NOTICE_LOG_FMT(SP1,"AM-BB COMMAND: Backup Offset:{:04x}", m_backoffset );
         m_backup->Seek(m_backoffset, File::SeekOrigin::Begin);
         _byte = 0x01;
       break;
-			case 0x02:
+      case AMBB_BACKUP_WRITE:
         NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: Backup Write:{:04x}-{:02x}", m_backoffset, m_command[1]);
 				m_backup->WriteBytes( &m_command[1], 1 );
         m_backup->Flush();
 				_byte = 0x01;
 				break;
-			case 0x03:
+      case AMBB_BACKUP_READ:
         NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: Backup Read :{:04x}", m_backoffset);
         _byte = 0x01;
 				break;
-			// EXI DMA Setup?
-      case 0x05:
+      case AMBB_DMA_OFFSET_LENGTH_SET:
         m_backup_dma_off = (m_command[1] << 8) | m_command[2];
         m_backup_dma_len = m_command[3];
         NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: Backup DMA :{:04x} {:02x}", m_backup_dma_off, m_backup_dma_len);
@@ -234,8 +232,7 @@ void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
 				break;
 			// Unknown
 			case 0xFF:
-        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: LANCNTWrite :{:02x} {:02x}", m_command[1],
-                       m_command[2]);	
+        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: LANCNTWrite :{:02x} {:02x}", m_command[1], m_command[2]);	
 				if( (m_command[1] == 0) && (m_command[2] == 0) )
 				{
 					m_have_irq = true;

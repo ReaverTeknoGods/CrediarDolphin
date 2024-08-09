@@ -590,6 +590,22 @@ void WiiSocket::Update(bool read, bool write, bool except)
             WiiSockMan::ToNativeAddrIn(addr, &local_name);
           }
 
+
+          // Wii Arcade game sending a UDP broadcast
+          // 
+          // Broadcast has to be enabled by hand
+          // sendTo prevents the followup call to bind
+          s32 ofd = fd;
+          if (local_name.sin_addr.s_addr == INADDR_BROADCAST)
+          {
+            fd = socket(AF_INET, SOCK_DGRAM, 0);
+            char broadcast = 'a';
+            if (setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &broadcast, sizeof(broadcast)) < 0)
+            {
+              ERROR_LOG_FMT(IOS_NET, "Failed to enable Broadcasting on socket");
+            }
+          }
+
           auto* to = has_destaddr ? reinterpret_cast<sockaddr*>(&local_name) : nullptr;
           socklen_t tolen = has_destaddr ? sizeof(sockaddr) : 0;
           const int ret = sendto(fd, data, BufferInSize, flags, to, tolen);
@@ -605,6 +621,14 @@ void WiiSocket::Update(bool read, bool write, bool except)
                        local_name.sin_addr.s_addr & 0xFF, (local_name.sin_addr.s_addr >> 8) & 0xFF,
                        (local_name.sin_addr.s_addr >> 16) & 0xFF,
                        (local_name.sin_addr.s_addr >> 24) & 0xFF);
+
+          // Clean up
+          if (local_name.sin_addr.s_addr == INADDR_BROADCAST)
+          {
+            closesocket(fd);
+            fd = ofd;
+          }
+
           break;
         }
         case IOCTLV_SO_RECVFROM:

@@ -32,7 +32,13 @@ namespace ExpansionInterface
   private:
 
   enum
-  {   
+  {
+      AMBB_OFFSET_SET   = 0x01,
+      AMBB_BACKUP_WRITE = 0x02,
+      AMBB_BACKUP_READ = 0x03,
+
+      AMBB_DMA_OFFSET_LENGTH_SET = 0x05,
+
       AMBB_ISR_READ = 0x82,
       AMBB_UNKNOWN = 0x83,     
       AMBB_IMR_READ = 0x86, 

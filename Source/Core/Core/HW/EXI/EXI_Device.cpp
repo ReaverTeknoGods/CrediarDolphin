@@ -15,6 +15,7 @@
 #include "Core/HW/EXI/EXI_DeviceMemoryCard.h"
 #include "Core/HW/EXI/EXI_DeviceMic.h"
 #include "Core/HW/EXI/EXI_DeviceAMBaseboard.h"
+#include "Core/HW/EXI/EXI_DeviceRVA.h"
 #include "Core/HW/Memmap.h"
 #include "Core/System.h"
 
@@ -163,6 +164,10 @@ std::unique_ptr<IEXIDevice> EXIDevice_Create(const EXIDeviceType device_type, co
 
   case EXIDeviceType::AMBaseboard:
     result = std::make_unique <CEXIAMBaseboard>();
+    break;
+
+  case EXIDeviceType::RVA:
+    result = std::make_unique<CEXIRVA>();
     break;
 
   case EXIDeviceType::None:

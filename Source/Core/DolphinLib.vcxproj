@@ -71,11 +71,13 @@
   <ItemGroup>
     <ClCompile Include="Core\HW\DVD\AMBaseboard.cpp" />
     <ClCompile Include="Core\HW\EXI\EXI_DeviceAMBaseboard.cpp" />
+    <ClCompile Include="Core\HW\EXI\EXI_DeviceRVA.cpp" />
     <ClCompile Include="Core\HW\SI\SI_DeviceAMBaseboard.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\HW\DVD\AMBaseboard.h" />
     <ClInclude Include="Core\HW\EXI\EXI_DeviceAMBaseboard.h" />
+    <ClInclude Include="Core\HW\EXI\EXI_DeviceRVA.h" />
     <ClInclude Include="Core\HW\SI\SI_DeviceAMBaseboard.h" />
   </ItemGroup>
   <UsingTask TaskName="GetProductVersion" TaskFactory="CodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">

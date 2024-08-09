@@ -1,6 +1,5 @@
-// Copyright 2013 Dolphin Emulator Project
-// Licensed under GPLv2
-// Refer to the license.txt file included.
+// Copyright 2017 Dolphin Emulator Project
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma warning( disable: 4189 )
 
@@ -141,10 +140,20 @@ CSIDevice_AMBaseboard::CSIDevice_AMBaseboard(SIDevices device, int device_number
   m_card_bit = 0;
   m_card_state_call_count = 0;
 
-  m_wheelinit = 0;
+  m_wheelinit         = 0;
 
-  m_motorinit = 0;
-  m_motorforce_x = 0; 
+  m_motorinit         = 0;
+  m_motorforce_x      = 0;
+
+  m_fzdx_seatbelt     = 1;
+  m_fzdx_motion_stop  = 0;
+  m_fzdx_sensor_right = 0;
+  m_fzdx_sensor_left  = 0;
+
+  m_fzcc_seatbelt     = 1;
+  m_fzcc_sensor       = 0;
+  m_fzcc_emergency    = 0;
+  m_fzcc_service      = 0;
 
   memset( m_motorreply, 0, sizeof( m_motorreply ) );
 }
@@ -209,8 +218,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
           {
           case 0x10:
           {
-            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 10, {:02x} (READ STATUS&SWITCHES)",
-                          ptr(1));
+            DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 10, {:02x} (READ STATUS&SWITCHES)", ptr(1));
+
             GCPadStatus PadStatus;
             PadStatus = Pad::GetStatus(ISIDevice::m_device_number);
             res[resp++] = 0x10;
@@ -337,7 +346,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
               // Serial - Wheel
               if (AMBaseboard::GetGameType() == MarioKartGP || AMBaseboard::GetGameType() == MarioKartGP2)
               {
-                NOTICE_LOG_FMT(AMBASEBOARDDEBUG,
+                INFO_LOG_FMT(AMBASEBOARDDEBUG,
                                "GC-AM: Command 31 (WHEEL) {:02x}{:02x} {:02x}{:02x} {:02x} {:02x} {:02x} {:02x} {:02x} {:02x}",
                                ptr(2), ptr(3), ptr(4), ptr(5), ptr(6), ptr(7), ptr(8), ptr(9), ptr(10), ptr(11) );
 
@@ -356,7 +365,11 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     res[resp++] = 'C'; // Power Off
                     res[resp++] = '0';
                     res[resp++] = '6';
-                    m_wheelinit++;
+                    // Only turn on when a wheel is connected
+                    if (SerialInterface::GetDeviceType(1) == SerialInterface::SIDEVICE_GC_STEERING)
+                    {
+                      m_wheelinit++;
+                    }
                     break;
                   case 2:
                     res[resp++] = 'C'; // Power On
@@ -402,7 +415,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
               // All commands are OR'd with 0x80
               // Last byte (ptr(5)) is checksum which we don't care about
               u32 cmd = 0;
-              if (AMBaseboard::GetGameType() == FZeroAX)
+              if (AMBaseboard::GetGameType() == FZeroAX || AMBaseboard::GetGameType() == FZeroAXMonster)
               {
                 cmd =  ptr(cmd_off + 2) << 24;
                 cmd |= ptr(cmd_off + 3) << 16;
@@ -410,7 +423,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                 cmd |= ptr(cmd_off + 5);
                 cmd ^= 0x80000000;
 
-                NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (MOTOR) Length:{:02x} Command:{:08x}", ptr(1), cmd );
+                INFO_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (MOTOR) Length:{:02x} Command:{:06x}({:02x})", ptr(1), cmd>>8, cmd&0xFF );
               }
               else
               {
@@ -418,14 +431,12 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                 cmd |= ptr(3) << 8;
                 cmd |= ptr(4);
 
-                NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (SERIAL) Command:{:06x}", cmd);
+                INFO_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (SERIAL) Command:{:06x}", cmd);
               }
 
-              cmd_off += 4;
+              cmd_off += 4; 
                
-               
-               
-              if (AMBaseboard::GetGameType() == FZeroAX)
+              if (AMBaseboard::GetGameType() == FZeroAX || AMBaseboard::GetGameType() == FZeroAXMonster)
               {
                 // Status
                 m_motorreply[cmd_off + 2] = 0;
@@ -438,10 +449,14 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                 {
                   case 0:
                     break;
-                  case 1: 
+                  case 1: // Set Maximum?
                     break;
                   case 2: 
                     break;
+                    /*
+                     0x00-0x40: left
+                     0x40-0x80: right
+                    */
                   case 4: // Move Steering Wheel
                     // Left
                     if( cmd & 0x010000 )
@@ -450,7 +465,26 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     }
                     else // Right
                     {
-                      m_motorforce_x = cmd & 0xFF00;
+                      m_motorforce_x = (cmd-0x4000) & 0xFF00;
+                    }
+
+                    m_motorforce_x *= 2;
+
+                    // FFB?
+                    if ( m_motorinit == 2 )
+                    {
+                      if (SerialInterface::GetDeviceType(1) == SerialInterface::SIDEVICE_GC_STEERING )
+                      {
+                        GCPadStatus PadStatus;
+                        PadStatus = Pad::GetStatus(1);
+                        if( PadStatus.isConnected )
+                        {
+                          ControlState mapped_strength = (double)(m_motorforce_x>>8);
+                          mapped_strength /= 127.f; 
+                          Pad::Rumble(1, mapped_strength);
+                          INFO_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command 31 (MOTOR) mapped_strength:{}", mapped_strength);
+                        }
+                      }
                     }
                     break;
                   case 6:  // nice
@@ -700,7 +734,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 												if( File::Exists( card_filename ) )
 												{
 													m_card_memory_size = (u32)File::GetSize(card_filename);
-													if( m_card_memory_size )
+                          if (m_card_memory_size)
+                          {
                             if (AMBaseboard::GetGameType() == FZeroAX)
                             {
                               m_card_bit = 2;
@@ -709,6 +744,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                             {
                               m_card_bit = 1;
                             }
+                          }
 												}
 												m_card_clean = 0;
 											}
@@ -884,8 +920,11 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 							msg.start(0);
 							msg.addData(1);
 
+              static u8 RXReply = 0;
+              static int delay = 0;
+
 							unsigned char jvs_io_buffer[0x80];
-							int nr_bytes = ptr(pptr + 2); // byte after e0 xx
+							int nr_bytes = ptr(pptr + 2); // byte after E0 xx
 							int jvs_io_length = 0;
 
 							for( int i=0; i<nr_bytes + 3; ++i )
@@ -907,8 +946,12 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								case 0x10:
 									msg.addData(1);
                   switch (AMBaseboard::GetGameType())
-                  { 
-                    case FZeroAX:
+                  {
+                  case FZeroAX:
+                  case FZeroAXMonster:
+                     // Specific version that enables DX mode on AX machines
+                      msg.addData("SEGA ENTERPRISES,LTD.;837-13844-01 I/O CNTL BD2 ;");
+                    break;
                     case MarioKartGP:
                     case MarioKartGP2: 
                     default:
@@ -918,23 +961,27 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     case VirtuaStriker4: 
                       msg.addData("SEGA ENTERPRISES,LTD.;I/O BD JVS;837-13551;Ver1.00");
                     break;
-                  }
+                    }
+                    NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO: Command 10, BoardID");
 									msg.addData(0);
 									break;
 								// Command format revision
 								case 0x11:
 									msg.addData(1);
-									msg.addData(0x11);
+                  msg.addData(0x11);
+                  NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO: Command 11, CMDFormatRevision");
 									break;
 								// JVS revision
 								case 0x12:
 									msg.addData(1);
-									msg.addData(0x20);
+                  msg.addData(0x20);
+                  NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:  Command 12, Revision");
 									break;
 								// Supported communications versions
 								case 0x13:
 									msg.addData(1);
-									msg.addData(0x10);
+                  msg.addData(0x10);
+                  NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:  Command 13, COMVersion");
 									break;
 
 								// Slave features
@@ -957,12 +1004,27 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									msg.addData(1);
 									switch(AMBaseboard::GetGameType())
 									{
-                    case FZeroAX: 
+                    case FZeroAX:
+                    case FZeroAXMonster:
 											// 2 Player (12bit) (p2=paddles), 1 Coin slot, 6 Analog-in
-											msg.addData((void *)"\x01\x02\x0C\x00", 4);
-											msg.addData((void *)"\x02\x01\x00\x00", 4);
-											msg.addData((void *)"\x03\x06\x00\x00", 4);
-											msg.addData((void *)"\x00\x00\x00\x00", 4);
+											//msg.addData((void *)"\x01\x02\x0C\x00", 4);
+											//msg.addData((void *)"\x02\x01\x00\x00", 4);
+											//msg.addData((void *)"\x03\x06\x00\x00", 4);
+											//msg.addData((void *)"\x00\x00\x00\x00", 4);
+
+                      /* 
+                        01 02 0c 00
+                        02 02 00 00
+                        03 08 00 00
+                        12 16 00 00 
+                      */
+
+                      // DX Version: 2 Player (22bit) (p2=paddles), 2 Coin slot, 8 Analog-in, 22 Driver-out
+                      msg.addData((void*)"\x01\x02\x12\x00", 4);
+                      msg.addData((void*)"\x02\x02\x00\x00", 4);
+                      msg.addData((void*)"\x03\x08\x0A\x00", 4);
+                      msg.addData((void*)"\x12\x16\x00\x00", 4);
+                      msg.addData((void*)"\x00\x00\x00\x00", 4);
 											break;
                     case VirtuaStriker3:
                     case GekitouProYakyuu:
@@ -993,7 +1055,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       msg.addData((void*)"\x10\x01\x00\x00", 4);
                       msg.addData((void*)"\x00\x00\x00\x00", 4);
                       break;
-									}
+                    }
+                    NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:  Command 14, SlaveFeatures");
 									break;
 								// convey ID of main board 
 								case 0x15:
@@ -1023,11 +1086,16 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 										switch(AMBaseboard::GetGameType())
 										{
-										  // Controller configuration for F-Zero AX
+										  // Controller configuration for F-Zero AX (DX)
                       case FZeroAX:
                       PadStatus = Pad::GetStatus(0);
 										  if( i == 0 )
-										  {
+										  { 
+                        if (m_fzdx_seatbelt)
+                        {
+                          player_data[0] |= 0x01;
+                        }
+
 											  // Start
 											  if( PadStatus.button & PAD_BUTTON_START )
 												  player_data[0] |= 0x80;
@@ -1048,7 +1116,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 												  player_data[0] |= 0x08;	
 											  // View Change 4
 											  if( PadStatus.button & PAD_BUTTON_DOWN )
-												  player_data[0] |= 0x04;
+                          player_data[0] |= 0x04;
+                        player_data[1] = RXReply & 0xF0;
 										  }
 										  else if ( i == 1 )
 										  {
@@ -1057,9 +1126,81 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 												  player_data[0] |= 0x20;
 											  //  Paddle right
                         if( PadStatus.button & PAD_BUTTON_B )
-												  player_data[0] |= 0x10;
+                          player_data[0] |= 0x10;
+
+                        if (m_fzdx_motion_stop)
+                        {
+                          player_data[0] |= 2; 
+                        } 
+                        if (m_fzdx_sensor_right)
+                        {
+                          player_data[0] |= 4; 
+                        } 
+                        if (m_fzdx_sensor_left)
+                        {
+                          player_data[0] |= 8; 
+                        }
+ 
+                       player_data[1] = RXReply << 4;
 										  }
 										  break;
+                      // Controller configuration for F-Zero AX MonsterRide
+                      case FZeroAXMonster:
+                      PadStatus = Pad::GetStatus(0);
+                      if (i == 0)
+                      { 
+                       if (m_fzcc_sensor)
+                       {
+                          player_data[0] |= 0x01; 
+                       }
+
+                       // Start
+                       if (PadStatus.button & PAD_BUTTON_START)
+                          player_data[0] |= 0x80;
+                       // Service button
+                       if (PadStatus.button & PAD_BUTTON_X)
+                          player_data[0] |= 0x40;
+                       // Boost
+                       if (PadStatus.button & PAD_BUTTON_Y)
+                          player_data[0] |= 0x02;
+                       // View Change 1
+                       if (PadStatus.button & PAD_BUTTON_RIGHT)
+                          player_data[0] |= 0x20;
+                       // View Change 2
+                       if (PadStatus.button & PAD_BUTTON_LEFT)
+                          player_data[0] |= 0x10;
+                       // View Change 3
+                       if (PadStatus.button & PAD_BUTTON_UP)
+                          player_data[0] |= 0x08;
+                       // View Change 4
+                       if (PadStatus.button & PAD_BUTTON_DOWN)
+                          player_data[0] |= 0x04;
+                       player_data[1] = RXReply & 0xF0;
+                      }
+                      else if (i == 1)
+                      {
+                       //  Paddle left
+                       if (PadStatus.button & PAD_BUTTON_A)
+                          player_data[0] |= 0x20;
+                       //  Paddle right
+                       if (PadStatus.button & PAD_BUTTON_B)
+                          player_data[0] |= 0x10;
+
+                       if (m_fzcc_seatbelt)
+                       {
+                          player_data[0] |= 2; 
+                       }
+                       if (m_fzcc_service)
+                       {
+                          player_data[0] |= 4; 
+                       }
+                       if (m_fzcc_emergency)
+                       {
+                          player_data[0] |= 8;  
+                       }
+                        
+                      }
+                      break;
 										  // Controller configuration for Virtua Striker 3 games
                       case VirtuaStriker3:
                         PadStatus = Pad::GetStatus(i);
@@ -1216,11 +1357,19 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                   switch( AMBaseboard::GetGameType() )
 									{
                     case FZeroAX:
+                    case FZeroAXMonster:
 											// Steering
                       if( m_motorinit == 1 )
 											{
-												msg.addData( m_motorforce_x >> 8 );
-												msg.addData( m_motorforce_x & 0xFF );
+                        if ( m_motorforce_x > 0)
+                      {
+                          msg.addData( 0x80 - (m_motorforce_x >> 8) );
+                        }
+                        else
+                        {
+                          msg.addData((m_motorforce_x >> 8));
+                        }
+                        msg.addData((u8)0);
 
                         msg.addData(PadStatus.stickY);
                         msg.addData((u8)0);
@@ -1246,7 +1395,13 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
 											// Brake
 											msg.addData(PadStatus.triggerLeft);
-											msg.addData((u8)0);
+                      msg.addData((u8)0);
+
+                      msg.addData((u8)0x80); // Motion Stop
+                      msg.addData((u8)0);
+
+                      msg.addData((u8)0);
+                      msg.addData((u8)0);
 
 											break;
                     case VirtuaStriker3:
@@ -1285,16 +1440,254 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								// Decrease Coin count
 								case 0x30:
 								{
-									int slot = *jvs_io++;
+                  u32 slot = *jvs_io++;
 									m_coin[slot]-= (*jvs_io++<<8)|*jvs_io++;
 									msg.addData(1);
 									break;
 								}
 								// general-purpose output
 								case 0x32:
-								{
-									int bytes = *jvs_io++;
-									while (bytes--) {*jvs_io++;}
+                {
+                  u32 bytes = *jvs_io++;
+                  if (bytes)
+                  { 
+                    u8* buf = new u8[bytes];
+
+                    for(u32 i=0; i<bytes; ++i) 
+                    {
+                       buf[i] = *jvs_io++;
+                    }
+
+                    NOTICE_LOG_FMT(AMBASEBOARDDEBUG,
+                                   "JVS-IO: Command 32, GPO: {:02x} {:02x} {} {:02x}{:02x}{:02x} ({:02x})",
+                                   delay, RXReply, 
+                                   bytes,
+                                   buf[0], buf[1], buf[2],
+                                   Common::swap16(*(u16*)(buf + 1)) >> 2 );
+
+                    u8 trepl [] = 
+                    { 0x00,
+                      0x10,
+                      0x20,
+                      0x30,
+                      0x40,
+                      0x50,
+                      0x60,
+                      0x70,
+                      0x80,
+                      0x90,
+                      0xA0,
+                      0xB0,
+                      0xC0,
+                      0xD0,
+                      0xE0,
+                      0xF0,
+                      0x01,
+                      0x11,
+                      0x21,
+                      0x31,
+                      0x41,
+                      0x51,
+                      0x61,
+                      0x71,
+                      0x81,
+                      0x91,
+                      0xA1,
+                      0xB1,
+                      0xC1,
+                      0xD1,
+                      0xE1,
+                      0xF1,
+                      0x02,
+                      0x12,
+                      0x22,
+                      0x32,
+                      0x42,
+                      0x52,
+                      0x62,
+                      0x72,
+                      0x82,
+                      0x92,
+                      0xA2,
+                      0xB2,
+                      0xC2,
+                      0xD2,
+                      0xE2,
+                      0xF2,
+                      0x04,
+                      0x14,
+                      0x24,
+                      0x34,
+                      0x44,
+                      0x54,
+                      0x64,
+                      0x74,
+                      0x84,
+                      0x94,
+                      0xA4,
+                      0xB4,
+                      0xC4,
+                      0xD4,
+                      0xE4,
+                      0xF4,
+                      0x05,
+                      0x15,
+                      0x25,
+                      0x35,
+                      0x45,
+                      0x55,
+                      0x65,
+                      0x75,
+                      0x85,
+                      0x95,
+                      0xA5,
+                      0xB5,
+                      0xC5,
+                      0xD5,
+                      0xE5,
+                      0xF5,
+                      0x06,
+                      0x16,
+                      0x26,
+                      0x36,
+                      0x46,
+                      0x56,
+                      0x66,
+                      0x76,
+                      0x86,
+                      0x96,
+                      0xA6,
+                      0xB6,
+                      0xC6,
+                      0xD6,
+                      0xE6,
+                      0xF6,
+                      0x08,
+                      0x18,
+                      0x28,
+                      0x38,
+                      0x48,
+                      0x58,
+                      0x68,
+                      0x78,
+                      0x88,
+                      0x98,
+                      0xA8,
+                      0xB8,
+                      0xC8,
+                      0xD8,
+                      0xE8,
+                      0xF8,
+                      0x09,
+                      0x19,
+                      0x29,
+                      0x39,
+                      0x49,
+                      0x59,
+                      0x69,
+                      0x79,
+                      0x89,
+                      0x99,
+                      0xA9,
+                      0xB9,
+                      0xC9,
+                      0xD9,
+                      0xE9,
+                      0xF9,
+                      0x0A,
+                      0x1A,
+                      0x2A,
+                      0x3A,
+                      0x4A,
+                      0x5A,
+                      0x6A,
+                      0x7A,
+                      0x8A,
+                      0x9A,
+                      0xAA,
+                      0xBA,
+                      0xCA,
+                      0xDA,
+                      0xEA,
+                      0xFA,
+                      0x0C,
+                      0x1C,
+                      0x2C,
+                      0x3C,
+                      0x4C,
+                      0x5C,
+                      0x6C,
+                      0x7C,
+                      0x8C,
+                      0x9C,
+                      0xAC,
+                      0xBC,
+                      0xCC,
+                      0xDC,
+                      0xEC,
+                      0xFC,
+                      0x0D,
+                      0x1D,
+                      0x2D,
+                      0x3D,
+                      0x4D,
+                      0x5D,
+                      0x6D,
+                      0x7D,
+                      0x8D,
+                      0x9D,
+                      0xAD,
+                      0xBD,
+                      0xCD,
+                      0xDD,
+                      0xED,
+                      0xFD,
+                      0x0E,
+                      0x1E,
+                      0x2E,
+                      0x3E,
+                      0x4E,
+                      0x5E,
+                      0x6E,
+                      0x7E,
+                      0x8E,
+                      0x9E,
+                      0xAE,
+                      0xBE,
+                      0xCE,
+                      0xDE,
+                      0xEE,
+                      0xFE };
+
+
+                    static u32 off = 0;
+                    if (off > sizeof(trepl))
+                       off = 0;
+
+                    switch( Common::swap16( *(u16*)(buf + 1) ) >> 2 )
+                    {
+                      case 0x70:
+                        delay++; 
+                        if ( (delay % 10) == 0 )
+                        {
+                          RXReply = trepl[off++];
+                        }
+                      break;
+                      default:
+                      case 0x60:
+                      case 0xA0:
+                      case 0xF0:
+                        RXReply = 0;
+                      break;
+                    }
+                    ////if( buf[1] == 1 && buf[2] == 0x80 )
+                    ////{
+                    ////  INFO_LOG_FMT(DVDINTERFACE, "GCAM: PC:{:08x}", PC);
+                    ////  PowerPC::breakpoints.Add( PC+8, false );
+                    ////}
+
+                    delete[] buf;
+                  }
 									msg.addData(1);
 									break;
 								}
@@ -1321,8 +1714,11 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 									break;
 								}
 								case 0xf0:
-									if (*jvs_io++ == 0xD9)
+                  if (*jvs_io++ == 0xD9)
+                  {
                     NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:RESET");
+                    delay = 0;
+                  }
 									msg.addData(1);
 
 									d10_1 |= 1;

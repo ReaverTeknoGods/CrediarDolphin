@@ -105,7 +105,7 @@ void MemoryWidget::CreateWidgets()
   m_search_offset = new QLineEdit;
 
   m_search_offset->setMaxLength(9);
-  m_search_address->setPlaceholderText(tr("Search Address"));
+  m_search_address->setItemText(0,tr("Search Address"));
   m_search_offset->setPlaceholderText(tr("Offset"));
 
   m_address_splitter->addWidget(m_search_address);

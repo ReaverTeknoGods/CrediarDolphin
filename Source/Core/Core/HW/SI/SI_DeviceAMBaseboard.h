@@ -80,6 +80,18 @@ private:
   u8 m_motorreply[64];
   s16 m_motorforce_x;
 
+  // F-Zero AX (DX)
+  u32 m_fzdx_seatbelt;
+  u32 m_fzdx_motion_stop;
+  u32 m_fzdx_sensor_right;
+  u32 m_fzdx_sensor_left;
+
+  // F-Zero AX (CryCraft)
+  u32 m_fzcc_seatbelt;
+  u32 m_fzcc_sensor;
+  u32 m_fzcc_emergency;
+  u32 m_fzcc_service; 
+
 public:
   // constructor
   CSIDevice_AMBaseboard(SIDevices device, int _iDeviceNumber);

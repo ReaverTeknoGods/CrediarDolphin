@@ -76,8 +76,7 @@ SIDevices ISIDevice::GetDeviceType() const
 int ISIDevice::RunBuffer(u8* buffer, int request_length)
 {
 #ifdef _DEBUG
-  NOTICE_LOG_FMT(SERIALINTERFACE, "Send Data Device({}) - Length({})   ", m_device_number,
-                request_length);
+  DEBUG_LOG_FMT(SERIALINTERFACE, "Send Data Device({}) - Length({})   ", m_device_number, request_length);
 
   std::string temp;
   int num = 0;
@@ -89,12 +88,12 @@ int ISIDevice::RunBuffer(u8* buffer, int request_length)
 
     if ((num % 8) == 0)
     {
-      NOTICE_LOG_FMT(SERIALINTERFACE, "{}", temp);
+      DEBUG_LOG_FMT(SERIALINTERFACE, "{}", temp);
       temp.clear();
     }
   }
 
-  NOTICE_LOG_FMT(SERIALINTERFACE, "{}", temp);
+  DEBUG_LOG_FMT(SERIALINTERFACE, "{}", temp);
   #endif
   return 0;
 }

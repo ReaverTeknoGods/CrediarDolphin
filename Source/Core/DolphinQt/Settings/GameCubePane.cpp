@@ -131,8 +131,8 @@ void GameCubePane::CreateWidgets()
   }
 
   // Add slot devices
-  for (const auto device : {EXIDeviceType::None, EXIDeviceType::Dummy, EXIDeviceType::MemoryCard,
-                            EXIDeviceType::MemoryCardFolder, EXIDeviceType::Gecko,
+  for (const auto device : {EXIDeviceType::None, EXIDeviceType::Dummy, EXIDeviceType::RVA,
+                            EXIDeviceType::MemoryCard, EXIDeviceType::MemoryCardFolder, EXIDeviceType::Gecko,
                             EXIDeviceType::AGP, EXIDeviceType::Microphone})
   {
     const QString name = tr(fmt::format("{:n}", device).c_str());
@@ -398,6 +398,10 @@ void GameCubePane::OnConfigPressed(ExpansionInterface::Slot slot)
     return;
   }
   case ExpansionInterface::EXIDeviceType::AMBaseboard:
+  {
+    return;
+  }
+  case ExpansionInterface::EXIDeviceType::RVA:
   {
     return;
   }

@@ -352,13 +352,37 @@ bool CBoot::SetupWiiMemory(Core::System& system, IOS::HLE::IOSC::ConsoleType con
       {DiscIO::Region::NTSC_J, {"JPN", "NTSC", "JP", "LJH"}},
       {DiscIO::Region::NTSC_U, {"USA", "NTSC", "US", "LU"}},
       {DiscIO::Region::PAL, {"EUR", "PAL", "EU", "LEH"}},
+      {DiscIO::Region::RGB, {"USA", "NTSC", "US", "YYY"}},
       {DiscIO::Region::NTSC_K, {"KOR", "NTSC", "KR", "LKH"}}};
   auto entryPos = region_settings.find(SConfig::GetInstance().m_region);
   RegionSetting region_setting = entryPos->second;
 
+  
+  // Check for special file with enables Arcade Mode
+  const std::string rva_file_path(Common::GetTitleDataPath(Titles::SYSTEM_MENU) + "/" WII_RVA);
+
+  const auto rfs = IOS::HLE::GetIOS()->GetFS();
+  const auto rfile = rfs->OpenFile(IOS::SYSMENU_UID, IOS::SYSMENU_GID, rva_file_path, IOS::HLE::FS::Mode::Read);
+
+  if (rfile->GetStatus().Succeeded())
+  {
+    console_type = IOS::HLE::IOSC::ConsoleType::RVA;
+    region_setting = region_settings.find(DiscIO::Region::RGB)->second;
+  }
+
   Common::SettingsHandler gen;
   std::string serno;
-  std::string model = "RVL-001(" + region_setting.area + ")";
+  std::string model;
+  if (console_type == IOS::HLE::IOSC::ConsoleType::RVA)
+  {
+    model = "RVT-001(";
+  }
+  else
+  {
+    model = "RVL-001(";
+  }
+  model += region_setting.area + ")";
+
   CreateSystemMenuTitleDirs();
   const std::string settings_file_path(Common::GetTitleDataPath(Titles::SYSTEM_MENU) +
                                        "/" WII_SETTING);
@@ -454,9 +478,20 @@ bool CBoot::SetupWiiMemory(Core::System& system, IOS::HLE::IOSC::ConsoleType con
   memory.Write_U32(0x0D15EA5E, 0x00000020);               // Another magic word
   memory.Write_U32(0x00000001, 0x00000024);               // Unknown
   memory.Write_U32(memory.GetRamSizeReal(), 0x00000028);  // MEM1 size 24MB
-  const Core::ConsoleType board_model = console_type == IOS::HLE::IOSC::ConsoleType::RVT ?
-                                            Core::ConsoleType::NDEV2_1 :
-                                            Core::ConsoleType::RVL_Retail3;
+  Core::ConsoleType board_model;
+  switch (console_type)
+  {
+    default:
+    case IOS::HLE::IOSC::ConsoleType::Retail:
+      board_model = Core::ConsoleType::RVL_Retail3;
+    break;
+    case IOS::HLE::IOSC::ConsoleType::RVT:
+      board_model = Core::ConsoleType::NDEV2_1;
+    break;
+    case IOS::HLE::IOSC::ConsoleType::RVA:
+      board_model = Core::ConsoleType::RVA1;
+    break;
+  }
   memory.Write_U32(static_cast<u32>(board_model), 0x0000002c);  // Board Model
   memory.Write_U32(0x00000000, 0x00000030);                     // Init
   memory.Write_U32(0x817FEC60, 0x00000034);                     // Init
@@ -471,7 +506,17 @@ bool CBoot::SetupWiiMemory(Core::System& system, IOS::HLE::IOSC::ConsoleType con
   memory.Write_U32(0x00000000, 0x000030c4);               // EXI
   memory.Write_U32(0x00000000, 0x000030dc);               // Time
   memory.Write_U32(0xffffffff, 0x000030d8);               // Unknown, set by any official NAND title
-  memory.Write_U16(0x8201, 0x000030e6);                   // Dev console / debug capable
+
+  // Dev console / debug capable
+  if (console_type == IOS::HLE::IOSC::ConsoleType::RVA)
+  {
+    memory.Write_U16(0x8300, 0x000030e6);
+  }
+  else
+  {
+    memory.Write_U16(0x8201, 0x000030e6);
+  }
+
   memory.Write_U32(0x00000000, 0x000030f0);               // Apploader
 
   // During the boot process, 0x315c is first set to 0xdeadbeef by IOS

@@ -202,6 +202,8 @@ add_library(core
   HW/EXI/EXI_DeviceMemoryCard.h
   HW/EXI/EXI_DeviceMic.cpp
   HW/EXI/EXI_DeviceMic.h
+  HW/EXI/EXI_DeviceRVA.cpp
+  HW/EXI/EXI_DeviceRVA.h
   HW/EXI/EXI.cpp
   HW/EXI/EXI.h
   HW/GBAPad.cpp

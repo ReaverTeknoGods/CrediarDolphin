@@ -137,12 +137,15 @@
 
 #define WII_SETTING "setting.txt"
 
+#define WII_RVA "RVA.txt"
+
 #define GECKO_CODE_HANDLER "codehandler.bin"
 
 // Subdirs in Sys
 #define GC_SYS_DIR "GC"
 #define WII_SYS_DIR "Wii"
 #define TRIFORCE_USER_DIR "Triforce"
+#define RVA_USER_DIR "RVA"
 
 // Subdirs in Config
 #define GRAPHICSMOD_CONFIG_DIR "GraphicMods"

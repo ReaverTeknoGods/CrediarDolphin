@@ -355,6 +355,8 @@ Region GetSysMenuRegion(u16 title_version)
     return Region::NTSC_U;
   case 2:
     return Region::PAL;
+  case 4:
+    return Region::RGB;
   case 6:
     return Region::NTSC_K;
   default:
@@ -377,6 +379,9 @@ std::string GetSysMenuVersionString(u16 title_version, bool is_vwii)
     break;
   case Region::PAL:
     region_letter = 'E';
+    break;
+  case Region::RGB:
+    region_letter = 'A';
     break;
   case Region::NTSC_K:
     region_letter = 'K';
