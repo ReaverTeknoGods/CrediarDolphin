@@ -110,7 +110,6 @@ u32 CEXISI::Read(RVAMemoryMap address, u32 size)
           break;
         }
       }
-
       else if (m_rx_type == 2)
       {
         data = SI0_reply_6[m_rxoff++];

@@ -229,6 +229,10 @@ void Init(void)
       sega_boot->Close();
     }
   }
+  else
+  {
+    PanicAlertFmt("Failed to open segaboot.gcm, which is required for test menus.");
+  }
 }
 u8 *InitDIMM( void )
 {
@@ -302,11 +306,19 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
 	INFO_LOG_FMT(DVDINTERFACE, "GCAM: {:08x} {:08x} DMA=addr:{:08x},len:{:08x} Keys: {:08x} {:08x} {:08x}",
                                 Command, Offset, Address, Length, GCAMKeyA, GCAMKeyB, GCAMKeyC );
 
-  // Test menu exit to sega boot
-  //if (Offset == 0x0002440 && Address == 0x013103a0 )
-  //{
-  //  FIRMWAREMAP = 1;
-  //}
+  // Test mode
+  if (Offset == 0x0002440)
+  { 
+    // Set by OSResetSystem
+    if(memory.Read_U32(0x811FFF00) == 1)
+    {
+      // Don't map firmware while in SegaBoot
+      if (memory.Read_U32(0x8006BF70) != 0x0A536567)
+      {
+        FIRMWAREMAP = 1;
+      }
+    }
+  }
   
 	switch(Command>>24)
 	{

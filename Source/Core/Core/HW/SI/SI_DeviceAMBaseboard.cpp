@@ -655,9 +655,9 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								resp++;	
 
 								res[CMDLenO] = res[ChkStart] + 2;
-
-							} else {
-
+							}
+              else
+              {
 								for( u32 i=0; i < ptr(1); ++i )
 									m_card_buffer[m_card_offset+i] = ptr(2+i);
 
@@ -670,26 +670,21 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 								{
 									if( m_card_buffer[m_card_offset-2] == 0x03 )
 									{
-										u32 cmd = m_card_buffer[2] << 24;
-											cmd|= m_card_buffer[3] << 16;
-											cmd|= m_card_buffer[4] <<  8;
-											cmd|= m_card_buffer[5] <<  0;
+                    m_card_command = m_card_buffer[2];
 
-										switch(cmd)
+										switch (CARDCommands(m_card_command))
 										{
-										case 0x10000000:
+                    case CARD_INIT:
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Init");
-											m_card_command = CARD_INIT;
 
 											m_card_write_length			= 0;
 											m_card_bit							= 0;
 											m_card_memory_size			= 0;
 											m_card_state_call_count	= 0;
 											break;
-										case 0x20000000:
+                    case CARD_GET_CARD_STATE:
 										{
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD GetState({:02X})", m_card_bit );
-											m_card_command = CARD_GET_CARD_STATE;
 
                       //if (m_card_memory_size == 0)
                       //{
@@ -726,7 +721,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											if( m_card_clean == 1 )
 											{
 												m_card_clean = 2;
-											} else if( m_card_clean == 2 )
+											}
+                      else if( m_card_clean == 2 )
 											{
 												std::string card_filename( File::GetUserPath(D_TRIUSER_IDX) + 
 												"tricard_" + SConfig::GetInstance().GetGameID().c_str() + ".bin" );
@@ -750,27 +746,22 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											}
 											break;
 										}
-										case 0x40000000:
+                    case CARD_IS_PRESENT:
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD IsPresent");
-											m_card_command = CARD_IS_PRESENT;
 											break;
-										case 0x7A000000:
-											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown7A");
-											m_card_command = CARD_REGISTER_FONT;
+                    case CARD_REGISTER_FONT:
+											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD RegisterFont");
 											break;
-										case 0xB0000000:
+                    case CARD_LOAD_CARD:
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD LoadCard");
-											m_card_command = CARD_LOAD_CARD;
 											break;
-										case 0xA0000000:
+                    case CARD_CLEAN_CARD:
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD IsCleanCard");
-											m_card_command = CARD_CLEAN_CARD;
 											m_card_clean = 1;
 											break;
-										case 0x33000000:
+                    case CARD_READ:
 										{
 											NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Read");
-											m_card_command = CARD_READ; 
 											//Prepare read packet
 											memset( m_card_read_packet, 0, 0xDB );
 											u32 POff=0;
@@ -800,7 +791,9 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											if (m_card_is_inserted)             // CARD Status
 											{
                         m_card_read_packet[POff++] = 0x31;
-											} else {
+											}
+                      else
+                      {
                         m_card_read_packet[POff++] = 0x30;
 											}
 
@@ -826,10 +819,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											m_card_read	= 0;
 											break;
 										}
-										case 0x53000000:
+                    case CARD_WRITE:
 										{
-											m_card_command = CARD_WRITE;
-
 											m_card_memory_size = m_card_buffer[1] - 9;
 
 											memcpy( m_card_memory, m_card_buffer+9, m_card_memory_size );										
@@ -848,29 +839,24 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											m_card_state_call_count = 0;
 											break;
 										}
-										case 0x78000000:
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Unknown78");
-											m_card_command	= CARD_SET_PRINT_PARAM;
+                    case CARD_SET_PRINT_PARAM:
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD PrintSetPara");
 											break;
-										case 0x7C000000:
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD WriteCardInfo");
-											m_card_command	= CARD_WRITE_INFO;
+                    case CARD_WRITE_INFO:
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD WriteInfo");
 											break;
-										case 0x7D000000:
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Print");
-											m_card_command	= CARD_ERASE;
+                    case CARD_ERASE:
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Erase");
 											break;
-										case 0x80000000:
+                    case CARD_EJECT:
                       NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Eject");
-											m_card_command	= CARD_EJECT;
                       if (AMBaseboard::GetGameType() != FZeroAX)
                       {
                         m_card_bit = 0;
                       }
 											break;
-										case 0xD0000000:
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD UnknownD0");
-                      m_card_command = CARD_SET_SHUTTER;
+                    case CARD_SET_SHUTTER:
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD ShutterSet");
                       if (AMBaseboard::GetGameType() != FZeroAX)
                       {
                         m_card_bit = 0;
@@ -878,7 +864,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 											break;
 										default:
 											ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:Unhandled cmd!");
-                      ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:[{:08X}]", cmd);
+                      ERROR_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARD:[{:08X}]", m_card_command);
 											//hexdump( m_card_buffer, m_card_offset );
 											break;
 										}
