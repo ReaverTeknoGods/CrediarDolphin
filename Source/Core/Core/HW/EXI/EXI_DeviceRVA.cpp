@@ -18,12 +18,15 @@
 #include "Core/Core.h"
 #include "Core/HLE/HLE.h" 
 #include "Core/HW/EXI/EXI.h" 
+#include "Core/HW/EXI/EXI_Device.h"
+#include "Core/HW/EXI/EXI_Channel.h"
 #include "Core/HW/MMIO.h"
 #include "Core/HW/Memmap.h"
 #include "Core/HW/SI/SI_DeviceGCController.h"
 #include "Core/PowerPC/PowerPC.h"
 #include "Core/PowerPC/PPCSymbolDB.h" 
 #include "Core/System.h" 
+#include "Core/ConfigManager.h"
 
 namespace ExpansionInterface
 {
@@ -85,7 +88,10 @@ CEXISI::~CEXISI() = default;
 u32 CEXISI::Read(RVAMemoryMap address, u32 size)
 {
   auto& system = Core::System::GetInstance();
-  auto& memory = system.GetMemory();   
+  auto& memory = system.GetMemory();
+  auto& ppc_state = system.GetPPCState();
+  auto& jit_interface = system.GetJitInterface();
+
   u32 data = 0;
 
   switch (address)
@@ -168,7 +174,7 @@ u32 CEXISI::Read(RVAMemoryMap address, u32 size)
         if (memory.Read_U32(0x800FAE90) == 0x60000000)
         {
           memory.Write_U32(0x48000011, 0x800FAE90);
-          PowerPC::ppcState.iCache.Invalidate(0x800FAE90); 
+          ppc_state.iCache.Invalidate(memory, jit_interface, 0x800FAE90); 
         }
       }
 
@@ -201,7 +207,9 @@ u32 CEXISI::Read(RVAMemoryMap address, u32 size)
 void CEXISI::Write(RVAMemoryMap address, u32 value)
 {
   auto& system = Core::System::GetInstance();
-  auto& memory = system.GetMemory();   
+  auto& memory = system.GetMemory();
+  auto& ppc_state = system.GetPPCState();
+  auto& jit_interface = system.GetJitInterface(); 
  
   if ((u32)address == (value >> 6))
   {
@@ -345,7 +353,7 @@ void CEXISI::Write(RVAMemoryMap address, u32 value)
             if (memory.Read_U32(0x800FAE90) == 0x48000011)
             {
               memory.Write_U32(0x60000000, 0x800FAE90);
-              PowerPC::ppcState.iCache.Invalidate(0x800FAE90);
+              ppc_state.iCache.Invalidate(memory, jit_interface, 0x800FAE90); 
             }
             break;
           // No command just prints the text
@@ -476,7 +484,7 @@ void CEXISI::Write(RVAMemoryMap address, u32 value)
       if (memory.Read_U32(0x800FAE90) == 0x48000011)
       {
         memory.Write_U32(0x60000000, 0x800FAE90);
-        PowerPC::ppcState.iCache.Invalidate(0x800FAE90);
+        ppc_state.iCache.Invalidate(memory, jit_interface, 0x800FAE90); 
       }
 
       m_tx_data = 0;
@@ -579,7 +587,7 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
 
 CEXIJVS::~CEXIJVS() {}
 
-CEXIRVA::CEXIRVA() : m_jvs(), m_si0(), m_si1()
+  CEXIRVA::CEXIRVA(Core::System& system) : IEXIDevice(system), m_jvs(), m_si0(), m_si1()
 {
   m_exi_write_mode = 0;
   m_watch_dog_timer = 0;

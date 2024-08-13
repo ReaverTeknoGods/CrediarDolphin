@@ -21,12 +21,9 @@
 
 enum class GameQuirk
 {
-  // Sometimes code run from ICache is different from its mirror in RAM.
-  ICACHE_MATTERS = 0,
-
   // The Wii remote hardware makes it possible to bypass normal data reporting and directly
   // "read" extension or IR data. This would break our current TAS/NetPlay implementation.
-  DIRECTLY_READS_WIIMOTE_INPUT,
+  DIRECTLY_READS_WIIMOTE_INPUT = 0,
 
   // Several Wii DI commands that are rarely/never used and not implemented by Dolphin
   USES_DVD_LOW_STOP_LASER,
@@ -92,6 +89,20 @@ enum class GameQuirk
   // but testing is needed to find out which of these is actually used for what.
   MISMATCHED_GPU_MATRIX_INDICES_BETWEEN_CP_AND_XF,
 
+  // Only a few games use the Bounding Box feature. Note that every game initializes the bounding
+  // box registers (using BPMEM_CLEARBBOX1/BPMEM_CLEARBBOX2) on startup, as part of the SDK, but
+  // only a few read them (from PE_BBOX_LEFT etc.)
+  READS_BOUNDING_BOX,
+
+  // A few games use invalid vertex component formats, but the two known cases (Fifa Street and
+  // Def Jam: Fight for New York, see https://bugs.dolphin-emu.org/issues/12719) only use invalid
+  // normal formats and lighting is disabled in those cases, so it doesn't end up mattering.
+  // It's possible other games use invalid formats, possibly on other vertex components.
+  INVALID_POSITION_COMPONENT_FORMAT,
+  INVALID_NORMAL_COMPONENT_FORMAT,
+  INVALID_TEXTURE_COORDINATE_COMPONENT_FORMAT,
+  INVALID_COLOR_COMPONENT_FORMAT,
+
   COUNT,
 };
 
@@ -122,6 +133,9 @@ public:
   // Generates a report for a special condition being hit by a game. This is automatically throttled
   // to once per game run.
   void ReportGameQuirk(GameQuirk quirk);
+
+  // Get the base builder for building a report
+  const Common::AnalyticsReportBuilder& BaseBuilder() const { return m_base_builder; }
 
   struct PerformanceSample
   {

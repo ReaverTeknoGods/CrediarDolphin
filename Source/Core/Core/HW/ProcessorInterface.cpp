@@ -18,14 +18,21 @@
 #include "Core/IOS/IOS.h"
 #include "Core/IOS/STM/STM.h"
 #include "Core/PowerPC/PowerPC.h"
+#include "Core/System.h"
 #include "VideoCommon/AsyncRequests.h"
 #include "VideoCommon/Fifo.h"
 
 namespace ProcessorInterface
 {
-constexpr u32 FLIPPER_REV_A = 0x046500B0;
-constexpr u32 FLIPPER_REV_B = 0x146500B1;
+constexpr u32 FLIPPER_REV_A [[maybe_unused]] = 0x046500B0;
+constexpr u32 FLIPPER_REV_B [[maybe_unused]] = 0x146500B1;
 constexpr u32 FLIPPER_REV_C = 0x246500B1;
+
+ProcessorInterfaceManager::ProcessorInterfaceManager(Core::System& system) : m_system(system)
+{
+}
+
+ProcessorInterfaceManager::~ProcessorInterfaceManager() = default;
 
 void ProcessorInterfaceManager::DoState(PointerWrap& p)
 {
@@ -49,8 +56,7 @@ void ProcessorInterfaceManager::Init()
   m_reset_code = 0;  // Cold reset
   m_interrupt_cause = INT_CAUSE_RST_BUTTON | INT_CAUSE_VI;
 
-  auto& system = Core::System::GetInstance();
-  auto& core_timing = system.GetCoreTiming();
+  auto& core_timing = m_system.GetCoreTiming();
   m_event_type_toggle_reset_button =
       core_timing.RegisterEvent("ToggleResetButton", ToggleResetButtonCallback);
   m_event_type_ios_notify_reset_button =
@@ -85,12 +91,12 @@ void ProcessorInterfaceManager::RegisterMMIO(MMIO::Mapping* mmio, u32 base)
                  MMIO::DirectWrite<u32>(&m_fifo_cpu_write_pointer, 0xFFFFFFE0));
 
   mmio->Register(base | PI_FIFO_RESET, MMIO::InvalidRead<u32>(),
-                 MMIO::ComplexWrite<u32>([](Core::System&, u32, u32 val) {
+                 MMIO::ComplexWrite<u32>([](Core::System& system, u32, u32 val) {
                    // Used by GXAbortFrame
                    INFO_LOG_FMT(PROCESSORINTERFACE, "Wrote PI_FIFO_RESET: {:08x}", val);
                    if ((val & 1) != 0)
                    {
-                     GPFifo::ResetGatherPipe();
+                     system.GetGPFifo().ResetGatherPipe();
 
                      // Call Fifo::ResetVideoBuffer() from the video thread. Since that function
                      // resets various pointers used by the video thread, we can't call it directly
@@ -118,9 +124,9 @@ void ProcessorInterfaceManager::RegisterMMIO(MMIO::Mapping* mmio, u32 base)
                    processor_interface.m_reset_code = val;
                    INFO_LOG_FMT(PROCESSORINTERFACE, "Wrote PI_RESET_CODE: {:08x}",
                                 processor_interface.m_reset_code);
-                   if (!SConfig::GetInstance().bWii && ~processor_interface.m_reset_code & 0x4)
+                   if (!system.IsWii() && (~processor_interface.m_reset_code & 0x4))
                    {
-                     DVDInterface::ResetDrive(true);
+                     system.GetDVDInterface().ResetDrive(true);
                    }
                  }));
 
@@ -139,10 +145,11 @@ void ProcessorInterfaceManager::RegisterMMIO(MMIO::Mapping* mmio, u32 base)
 
 void ProcessorInterfaceManager::UpdateException()
 {
+  auto& ppc_state = m_system.GetPPCState();
   if ((m_interrupt_cause & m_interrupt_mask) != 0)
-    PowerPC::ppcState.Exceptions |= EXCEPTION_EXTERNAL_INT;
+    ppc_state.Exceptions |= EXCEPTION_EXTERNAL_INT;
   else
-    PowerPC::ppcState.Exceptions &= ~EXCEPTION_EXTERNAL_INT;
+    ppc_state.Exceptions &= ~EXCEPTION_EXTERNAL_INT;
 }
 
 static const char* Debug_GetInterruptName(u32 cause_mask)
@@ -225,7 +232,7 @@ void ProcessorInterfaceManager::ToggleResetButtonCallback(Core::System& system, 
 void ProcessorInterfaceManager::IOSNotifyResetButtonCallback(Core::System& system, u64 userdata,
                                                              s64 cyclesLate)
 {
-  const auto ios = IOS::HLE::GetIOS();
+  const auto ios = system.GetIOS();
   if (!ios)
     return;
 
@@ -237,7 +244,7 @@ void ProcessorInterfaceManager::IOSNotifyResetButtonCallback(Core::System& syste
 void ProcessorInterfaceManager::IOSNotifyPowerButtonCallback(Core::System& system, u64 userdata,
                                                              s64 cyclesLate)
 {
-  const auto ios = IOS::HLE::GetIOS();
+  const auto ios = system.GetIOS();
   if (!ios)
     return;
 
@@ -248,25 +255,23 @@ void ProcessorInterfaceManager::IOSNotifyPowerButtonCallback(Core::System& syste
 
 void ProcessorInterfaceManager::ResetButton_Tap()
 {
-  if (!Core::IsRunning())
+  if (!Core::IsRunning(m_system))
     return;
 
-  auto& system = Core::System::GetInstance();
-  auto& core_timing = system.GetCoreTiming();
+  auto& core_timing = m_system.GetCoreTiming();
   core_timing.ScheduleEvent(0, m_event_type_toggle_reset_button, true, CoreTiming::FromThread::ANY);
   core_timing.ScheduleEvent(0, m_event_type_ios_notify_reset_button, 0,
                             CoreTiming::FromThread::ANY);
-  core_timing.ScheduleEvent(SystemTimers::GetTicksPerSecond() / 2, m_event_type_toggle_reset_button,
-                            false, CoreTiming::FromThread::ANY);
+  core_timing.ScheduleEvent(m_system.GetSystemTimers().GetTicksPerSecond() / 2,
+                            m_event_type_toggle_reset_button, false, CoreTiming::FromThread::ANY);
 }
 
 void ProcessorInterfaceManager::PowerButton_Tap()
 {
-  if (!Core::IsRunning())
+  if (!Core::IsRunning(m_system))
     return;
 
-  auto& system = Core::System::GetInstance();
-  auto& core_timing = system.GetCoreTiming();
+  auto& core_timing = m_system.GetCoreTiming();
   core_timing.ScheduleEvent(0, m_event_type_ios_notify_power_button, 0,
                             CoreTiming::FromThread::ANY);
 }

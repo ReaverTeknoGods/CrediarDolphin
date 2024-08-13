@@ -18,7 +18,7 @@ static std::unique_ptr<IOCtlRequest> s_event_hook_request;
 
 std::optional<IPCReply> STMImmediateDevice::IOCtl(const IOCtlRequest& request)
 {
-  auto& system = Core::System::GetInstance();
+  auto& system = GetSystem();
   auto& memory = system.GetMemory();
 
   s32 return_value = IPC_SUCCESS;
@@ -37,7 +37,7 @@ std::optional<IPCReply> STMImmediateDevice::IOCtl(const IOCtlRequest& request)
       break;
     }
     memory.Write_U32(0, s_event_hook_request->buffer_out);
-    m_ios.EnqueueIPCReply(*s_event_hook_request, IPC_SUCCESS);
+    GetEmulationKernel().EnqueueIPCReply(*s_event_hook_request, IPC_SUCCESS);
     s_event_hook_request.reset();
     break;
 
@@ -58,8 +58,21 @@ std::optional<IPCReply> STMImmediateDevice::IOCtl(const IOCtlRequest& request)
     INFO_LOG_FMT(IOS_STM, "    IOCTL_STM_LEDMODE");
     break;
 
+  case IOCTL_STM_HOTRESET_FOR_PD:
+  case IOCTL_STM_WAKEUP:
+  case IOCTL_STM_GET_IDLEMODE:
+  case IOCTL_STM_READDDRREG:
+  case IOCTL_STM_READDDRREG2:
+  case IOCTL_STM_LEDFLASH:
+  case IOCTL_STM_READVER:
+  case IOCTL_STM_WRITEDMCU:
+    ERROR_LOG_FMT(IOS_STM, "{} - Unimplemented IOCtl: {}", GetDeviceName(), request.request);
+    break;
+
   default:
-    request.DumpUnknown(GetDeviceName(), Common::Log::LogType::IOS_STM);
+    request.DumpUnknown(GetSystem(), GetDeviceName(), Common::Log::LogType::IOS_STM);
+    return_value = IPC_UNKNOWN;
+    break;
   }
 
   return IPCReply(return_value);
@@ -73,13 +86,13 @@ STMEventHookDevice::~STMEventHookDevice()
 std::optional<IPCReply> STMEventHookDevice::IOCtl(const IOCtlRequest& request)
 {
   if (request.request != IOCTL_STM_EVENTHOOK)
-    return IPCReply(IPC_EINVAL);
+    return IPCReply(IPC_UNKNOWN);
 
   if (s_event_hook_request)
     return IPCReply(IPC_EEXIST);
 
   // IOCTL_STM_EVENTHOOK waits until the reset button or power button is pressed.
-  s_event_hook_request = std::make_unique<IOCtlRequest>(request.address);
+  s_event_hook_request = std::make_unique<IOCtlRequest>(GetSystem(), request.address);
   return std::nullopt;
 }
 
@@ -89,9 +102,13 @@ void STMEventHookDevice::DoState(PointerWrap& p)
   u32 address = s_event_hook_request ? s_event_hook_request->address : 0;
   p.Do(address);
   if (address != 0)
-    s_event_hook_request = std::make_unique<IOCtlRequest>(address);
+  {
+    s_event_hook_request = std::make_unique<IOCtlRequest>(GetSystem(), address);
+  }
   else
+  {
     s_event_hook_request.reset();
+  }
 }
 
 bool STMEventHookDevice::HasHookInstalled() const
@@ -105,10 +122,10 @@ void STMEventHookDevice::TriggerEvent(const u32 event) const
   if (!m_is_active || !s_event_hook_request)
     return;
 
-  auto& system = Core::System::GetInstance();
+  auto& system = GetSystem();
   auto& memory = system.GetMemory();
   memory.Write_U32(event, s_event_hook_request->buffer_out);
-  m_ios.EnqueueIPCReply(*s_event_hook_request, IPC_SUCCESS);
+  GetEmulationKernel().EnqueueIPCReply(*s_event_hook_request, IPC_SUCCESS);
   s_event_hook_request.reset();
 }
 

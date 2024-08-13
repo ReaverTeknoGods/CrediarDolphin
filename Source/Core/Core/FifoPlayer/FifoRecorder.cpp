@@ -10,11 +10,15 @@
 #include "Common/MsgHandler.h"
 #include "Common/Thread.h"
 
-#include "Core/ConfigManager.h"
 #include "Core/HW/Memmap.h"
 #include "Core/System.h"
 
+#include "VideoCommon/BPMemory.h"
+#include "VideoCommon/CommandProcessor.h"
 #include "VideoCommon/OpcodeDecoding.h"
+#include "VideoCommon/TextureDecoder.h"
+#include "VideoCommon/VideoEvents.h"
+#include "VideoCommon/XFMemory.h"
 #include "VideoCommon/XFStructs.h"
 
 class FifoRecorder::FifoRecordAnalyzer : public OpcodeDecoder::Callback
@@ -64,7 +68,7 @@ void FifoRecorder::FifoRecordAnalyzer::OnIndexedLoad(CPArray array, u32 index, u
 {
   const u32 load_address = m_cpmem.array_bases[array] + m_cpmem.array_strides[array] * index;
 
-  m_owner->UseMemory(load_address, size * sizeof(u32), MemoryUpdate::XF_DATA);
+  m_owner->UseMemory(load_address, size * sizeof(u32), MemoryUpdate::Type::XFData);
 }
 
 // TODO: The following code is copied with modifications from VertexLoaderBase.
@@ -205,12 +209,14 @@ void FifoRecorder::FifoRecordAnalyzer::ProcessVertexComponent(
   const u32 array_start = m_cpmem.array_bases[array_index] + byte_offset;
   const u32 array_size = m_cpmem.array_strides[array_index] * max_index + component_size;
 
-  m_owner->UseMemory(array_start, array_size, MemoryUpdate::VERTEX_STREAM);
+  m_owner->UseMemory(array_start, array_size, MemoryUpdate::Type::VertexStream);
 }
 
-static FifoRecorder instance;
+FifoRecorder::FifoRecorder(Core::System& system) : m_system(system)
+{
+}
 
-FifoRecorder::FifoRecorder() = default;
+FifoRecorder::~FifoRecorder() = default;
 
 void FifoRecorder::StartRecording(s32 numFrames, CallbackFunc finishedCb)
 {
@@ -230,15 +236,14 @@ void FifoRecorder::StartRecording(s32 numFrames, CallbackFunc finishedCb)
   //   - Global variables suck
   //   - Multithreading with the above two sucks
   //
-  auto& system = Core::System::GetInstance();
-  auto& memory = system.GetMemory();
+  auto& memory = m_system.GetMemory();
   m_Ram.resize(memory.GetRamSize());
   m_ExRam.resize(memory.GetExRamSize());
 
   std::fill(m_Ram.begin(), m_Ram.end(), 0);
   std::fill(m_ExRam.begin(), m_ExRam.end(), 0);
 
-  m_File->SetIsWii(SConfig::GetInstance().bWii);
+  m_File->SetIsWii(m_system.IsWii());
 
   if (!m_IsRecording)
   {
@@ -249,6 +254,44 @@ void FifoRecorder::StartRecording(s32 numFrames, CallbackFunc finishedCb)
 
   m_RequestedRecordingEnd = false;
   m_FinishedCb = finishedCb;
+
+  m_end_of_frame_event = AfterFrameEvent::Register(
+      [this](const Core::System& system) {
+        const bool was_recording = OpcodeDecoder::g_record_fifo_data;
+        OpcodeDecoder::g_record_fifo_data = IsRecording();
+
+        if (!OpcodeDecoder::g_record_fifo_data)
+        {
+          // Remove this frame end callback when recording finishes
+          m_end_of_frame_event.reset();
+          return;
+        }
+
+        if (!was_recording)
+        {
+          RecordInitialVideoMemory();
+        }
+
+        const auto& fifo = system.GetCommandProcessor().GetFifo();
+        EndFrame(fifo.CPBase.load(std::memory_order_relaxed),
+                 fifo.CPEnd.load(std::memory_order_relaxed));
+      },
+      "FifoRecorder::EndFrame");
+}
+
+void FifoRecorder::RecordInitialVideoMemory()
+{
+  const u32* bpmem_ptr = reinterpret_cast<const u32*>(&bpmem);
+  u32 cpmem[256] = {};
+  // The FIFO recording format splits XF memory into xfmem and xfregs; follow
+  // that split here.
+  const u32* xfmem_ptr = reinterpret_cast<const u32*>(&xfmem);
+  const u32* xfregs_ptr = reinterpret_cast<const u32*>(&xfmem) + FifoDataFile::XF_MEM_SIZE;
+  u32 xfregs_size = sizeof(XFMemory) / 4 - FifoDataFile::XF_MEM_SIZE;
+
+  g_main_cp_state.FillCPMemoryArray(cpmem);
+
+  SetVideoMemory(bpmem_ptr, cpmem, xfmem_ptr, xfregs_ptr, xfregs_size, s_tex_mem.data());
 }
 
 void FifoRecorder::StopRecording()
@@ -313,8 +356,7 @@ void FifoRecorder::WriteGPCommand(const u8* data, u32 size)
 
 void FifoRecorder::UseMemory(u32 address, u32 size, MemoryUpdate::Type type, bool dynamicUpdate)
 {
-  auto& system = Core::System::GetInstance();
-  auto& memory = system.GetMemory();
+  auto& memory = m_system.GetMemory();
 
   u8* curData;
   u8* newData;
@@ -395,7 +437,7 @@ void FifoRecorder::EndFrame(u32 fifoStart, u32 fifoEnd)
 }
 
 void FifoRecorder::SetVideoMemory(const u32* bpMem, const u32* cpMem, const u32* xfMem,
-                                  const u32* xfRegs, u32 xfRegsSize, const u8* texMem)
+                                  const u32* xfRegs, u32 xfRegsSize, const u8* texMem_ptr)
 {
   std::lock_guard lk(m_mutex);
 
@@ -408,7 +450,7 @@ void FifoRecorder::SetVideoMemory(const u32* bpMem, const u32* cpMem, const u32*
     u32 xfRegsCopySize = std::min((u32)FifoDataFile::XF_REGS_SIZE, xfRegsSize);
     memcpy(m_File->GetXFRegs(), xfRegs, xfRegsCopySize * 4);
 
-    memcpy(m_File->GetTexMem(), texMem, FifoDataFile::TEX_MEM_SIZE);
+    memcpy(m_File->GetTexMem(), texMem_ptr, FifoDataFile::TEX_MEM_SIZE);
   }
 
   m_record_analyzer = std::make_unique<FifoRecordAnalyzer>(this, cpMem);
@@ -417,9 +459,4 @@ void FifoRecorder::SetVideoMemory(const u32* bpMem, const u32* cpMem, const u32*
 bool FifoRecorder::IsRecording() const
 {
   return m_IsRecording;
-}
-
-FifoRecorder& FifoRecorder::GetInstance()
-{
-  return instance;
 }

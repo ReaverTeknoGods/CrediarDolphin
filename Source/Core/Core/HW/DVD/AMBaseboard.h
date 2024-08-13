@@ -96,7 +96,7 @@ namespace AMBaseboard
   void  FirmwareMap(bool on);
   u8*   InitDIMM(void);
   void  InitKeys(u32 KeyA, u32 KeyB, u32 KeyC);
-  u32   ExecuteCommand( u32 *DICMDBUF, u32 Address, u32 Length );
+  u32   ExecuteCommand(std::array<u32, 3>& DICMDBUF, u32 Address, u32 Length);
 	u32		GetGameType( void );
   u32   GetMediaType( void );
 	void	Shutdown( void );

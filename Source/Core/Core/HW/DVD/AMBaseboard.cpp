@@ -243,10 +243,12 @@ u8 *InitDIMM( void )
   FIRMWAREMAP = 0;
   return m_dimm_disc;
 }
-u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
+u32 ExecuteCommand(std::array<u32, 3>& DICMDBUF, u32 Address, u32 Length)
 {
   auto& system = Core::System::GetInstance();
-  auto& memory = system.GetMemory();   
+  auto& memory = system.GetMemory();
+  auto& ppc_state = system.GetPPCState();
+  auto& jit_interface = system.GetJitInterface();
 
   /*
     The triforce IPL sends these commands first
@@ -272,11 +274,11 @@ u32 ExecuteCommand(u32* DICMDBUF, u32 Address, u32 Length)
       memory.Write_U32(0x4E800020, 0x813025C8);
       memory.Write_U32(0x4E800020, 0x81302674);
       
-      PowerPC::ppcState.iCache.Invalidate(0x813025C8);
-      PowerPC::ppcState.iCache.Invalidate(0x81302674);
+      ppc_state.iCache.Invalidate(memory, jit_interface, 0x813025C8);
+      ppc_state.iCache.Invalidate(memory, jit_interface, 0x81302674);
 
-      HLE::Patch(0x813048B8, "OSReport");
-      HLE::Patch(0x8130095C, "OSReport");  // Apploader
+      HLE::Patch(system, 0x813048B8, "OSReport");
+      HLE::Patch(system, 0x8130095C, "OSReport");  // Apploader
     }
   }
 

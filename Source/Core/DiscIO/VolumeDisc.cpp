@@ -16,10 +16,9 @@
 
 namespace DiscIO
 {
-
 std::string VolumeDisc::GetGameID(const Partition& partition) const
 {
-  char id[6]; 
+  char id[6];
 
   // Triforce games have their Game ID stored in the boot.id file
   const FileSystem* file_system = GetFileSystem(partition);
@@ -31,7 +30,7 @@ std::string VolumeDisc::GetGameID(const Partition& partition) const
       u8* bootid_buffer = new u8[file_info->GetTotalSize()];
       if (Read(file_info->GetOffset(), file_info->GetTotalSize(), bootid_buffer, partition))
       {
-        memcpy(id, bootid_buffer + 0x30, sizeof(id) );
+        memcpy(id, bootid_buffer + 0x30, sizeof(id));
 
         delete[] bootid_buffer;
 
@@ -100,13 +99,13 @@ std::string VolumeDisc::GetInternalName(const Partition& partition) const
       u8* bootid_buffer = new u8[file_info->GetTotalSize()];
       if (Read(file_info->GetOffset(), file_info->GetTotalSize(), bootid_buffer, partition))
       {
-        memcpy(name, bootid_buffer + 0x80, 0x20 );
+        memcpy(name, bootid_buffer + 0x80, 0x20);
 
         delete[] bootid_buffer;
 
         return DecodeString(name);
       }
-      // Fall back to normal ID from header
+      // Fall back to normal title from header
       delete[] bootid_buffer;
     }
   }

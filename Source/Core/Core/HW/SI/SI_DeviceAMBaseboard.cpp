@@ -119,8 +119,8 @@ public:
 
 
 // AM-Baseboard device on SI
-CSIDevice_AMBaseboard::CSIDevice_AMBaseboard(SIDevices device, int device_number)
-    : ISIDevice(device, device_number)
+CSIDevice_AMBaseboard::CSIDevice_AMBaseboard(Core::System& system, SIDevices device, int device_number)
+    : ISIDevice(system, device, device_number)
 {
   memset( m_coin, 0, sizeof( m_coin ) );
 
@@ -169,7 +169,8 @@ constexpr s32 ConvertSILengthField(u32 field)
 int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 { 
   // Math inLength
-  int _iLength = SerialInterface::GetInLength();
+  const auto& si = m_system.GetSerialInterface();
+  int _iLength = ConvertSILengthField(si.GetInLength());
 
 	// for debug logging only
 	ISIDevice::RunBuffer(_pBuffer, _iLength);
@@ -366,7 +367,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     res[resp++] = '0';
                     res[resp++] = '6';
                     // Only turn on when a wheel is connected
-                    if (SerialInterface::GetDeviceType(1) == SerialInterface::SIDEVICE_GC_STEERING)
+                    if (si.GetDeviceType(1) == SerialInterface::SIDEVICE_GC_STEERING)
                     {
                       m_wheelinit++;
                     }
@@ -473,7 +474,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     // FFB?
                     if ( m_motorinit == 2 )
                     {
-                      if (SerialInterface::GetDeviceType(1) == SerialInterface::SIDEVICE_GC_STEERING )
+                      if (si.GetDeviceType(1) == SerialInterface::SIDEVICE_GC_STEERING)
                       {
                         GCPadStatus PadStatus;
                         PadStatus = Pad::GetStatus(1);

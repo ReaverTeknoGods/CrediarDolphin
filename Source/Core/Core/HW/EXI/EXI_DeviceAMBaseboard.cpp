@@ -61,7 +61,8 @@ static u16 CheckSum( u8 *Data, u32 Length)
 namespace ExpansionInterface
 {
 
-CEXIAMBaseboard::CEXIAMBaseboard() : m_position(0), m_have_irq(false)
+CEXIAMBaseboard::CEXIAMBaseboard(Core::System& system)
+    : IEXIDevice(system), m_position(0), m_have_irq(false)
 {
   std::string backup_Filename(File::GetUserPath(D_TRIUSER_IDX) + "tribackup_" +
                               SConfig::GetInstance().GetGameID().c_str() + ".bin");

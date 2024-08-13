@@ -13,12 +13,17 @@
 #include "Core/HW/EXI/EXI_Device.h"
 #include "Common/IOFile.h"
 
+namespace Core
+{
+class System;
+}
+
 namespace ExpansionInterface
 {
   class CEXIAMBaseboard : public IEXIDevice
   {
   public:
-    explicit CEXIAMBaseboard();
+    explicit CEXIAMBaseboard(Core::System& system);
     virtual ~CEXIAMBaseboard();
 
     void SetCS(int _iCS) override;

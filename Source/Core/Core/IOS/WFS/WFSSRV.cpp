@@ -25,7 +25,8 @@ std::string NativePath(const std::string& wfs_path)
 }
 }  // namespace WFS
 
-WFSSRVDevice::WFSSRVDevice(Kernel& ios, const std::string& device_name) : Device(ios, device_name)
+WFSSRVDevice::WFSSRVDevice(EmulationKernel& ios, const std::string& device_name)
+    : EmulationDevice(ios, device_name)
 {
   m_device_name = "msc01";
 }
@@ -34,7 +35,7 @@ std::optional<IPCReply> WFSSRVDevice::IOCtl(const IOCtlRequest& request)
 {
   int return_error_code = IPC_SUCCESS;
 
-  auto& system = Core::System::GetInstance();
+  auto& system = GetSystem();
   auto& memory = system.GetMemory();
 
   switch (request.request)
@@ -57,11 +58,11 @@ std::optional<IPCReply> WFSSRVDevice::IOCtl(const IOCtlRequest& request)
     // Close all hanging attach/detach ioctls with an appropriate error code.
     for (auto address : m_hanging)
     {
-      IOCtlRequest hanging_request{address};
+      IOCtlRequest hanging_request{system, address};
       memory.Write_U32(0x80000000, hanging_request.buffer_out);
       memory.Write_U32(0, hanging_request.buffer_out + 4);
       memory.Write_U32(0, hanging_request.buffer_out + 8);
-      m_ios.EnqueueIPCReply(hanging_request, 0);
+      GetEmulationKernel().EnqueueIPCReply(hanging_request, 0);
     }
     break;
 
@@ -296,7 +297,7 @@ std::optional<IPCReply> WFSSRVDevice::IOCtl(const IOCtlRequest& request)
       fd_obj->file.Seek(position, File::SeekOrigin::Begin);
     }
     size_t read_bytes;
-    fd_obj->file.ReadArray(memory.GetPointer(addr), size, &read_bytes);
+    fd_obj->file.ReadArray(memory.GetPointerForRange(addr, size), size, &read_bytes);
     // TODO(wfs): Handle read errors.
     if (absolute)
     {
@@ -336,7 +337,7 @@ std::optional<IPCReply> WFSSRVDevice::IOCtl(const IOCtlRequest& request)
     {
       fd_obj->file.Seek(position, File::SeekOrigin::Begin);
     }
-    fd_obj->file.WriteArray(memory.GetPointer(addr), size);
+    fd_obj->file.WriteArray(memory.GetPointerForRange(addr, size), size);
     // TODO(wfs): Handle write errors.
     if (absolute)
     {
@@ -355,7 +356,7 @@ std::optional<IPCReply> WFSSRVDevice::IOCtl(const IOCtlRequest& request)
   default:
     // TODO(wfs): Should be returning -3. However until we have everything
     // properly stubbed it's easier to simulate the methods succeeding.
-    request.DumpUnknown(GetDeviceName(), Common::Log::LogType::IOS_WFS,
+    request.DumpUnknown(system, GetDeviceName(), Common::Log::LogType::IOS_WFS,
                         Common::Log::LogLevel::LWARNING);
     memory.Memset(request.buffer_out, 0, request.buffer_out_size);
     break;

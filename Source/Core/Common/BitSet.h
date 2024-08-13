@@ -73,7 +73,7 @@ public:
       else
       {
         int bit = std::countr_zero(m_val);
-        m_val &= ~(1 << bit);
+        m_val &= ~(IntTy{1} << bit);
         m_bit = bit;
       }
       return *this;
@@ -93,21 +93,20 @@ public:
     int m_bit;
   };
 
-  constexpr BitSet() : m_val(0) {}
+  constexpr BitSet() = default;
   constexpr explicit BitSet(IntTy val) : m_val(val) {}
-  BitSet(std::initializer_list<int> init)
+  constexpr BitSet(std::initializer_list<int> init)
   {
-    m_val = 0;
     for (int bit : init)
-      m_val |= (IntTy)1 << bit;
+      m_val |= IntTy{1} << bit;
   }
 
   constexpr static BitSet AllTrue(size_t count)
   {
-    return BitSet(count == sizeof(IntTy) * 8 ? ~(IntTy)0 : (((IntTy)1 << count) - 1));
+    return BitSet(count == sizeof(IntTy) * 8 ? ~IntTy{0} : ((IntTy{1} << count) - 1));
   }
 
-  Ref operator[](size_t bit) { return Ref(this, (IntTy)1 << bit); }
+  Ref operator[](size_t bit) { return Ref(this, IntTy{1} << bit); }
   constexpr const Ref operator[](size_t bit) const { return (*const_cast<BitSet*>(this))[bit]; }
   constexpr bool operator==(BitSet other) const { return m_val == other.m_val; }
   constexpr bool operator!=(BitSet other) const { return m_val != other.m_val; }
@@ -132,7 +131,7 @@ public:
   constexpr unsigned int Count() const { return std::popcount(m_val); }
   constexpr Iterator begin() const { return ++Iterator(m_val, 0); }
   constexpr Iterator end() const { return Iterator(m_val, -1); }
-  IntTy m_val;
+  IntTy m_val{};
 };
 }  // namespace Common
 

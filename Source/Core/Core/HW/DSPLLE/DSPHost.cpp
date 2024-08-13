@@ -9,7 +9,6 @@
 #include "Common/Hash.h"
 #include "Common/Logging/Log.h"
 #include "Core/Config/MainSettings.h"
-#include "Core/ConfigManager.h"
 #include "Core/DSP/DSPAnalyzer.h"
 #include "Core/DSP/DSPCodeUtil.h"
 #include "Core/DSP/DSPCore.h"
@@ -30,12 +29,12 @@ namespace DSP::Host
 {
 u8 ReadHostMemory(u32 addr)
 {
-  return DSP::ReadARAM(addr);
+  return Core::System::GetInstance().GetDSP().ReadARAM(addr);
 }
 
 void WriteHostMemory(u8 value, u32 addr)
 {
-  DSP::WriteARAM(value, addr);
+  Core::System::GetInstance().GetDSP().WriteARAM(value, addr);
 }
 
 void DMAToDSP(u16* dst, u32 addr, u32 size)
@@ -64,20 +63,20 @@ bool OnThread()
 
 bool IsWiiHost()
 {
-  return SConfig::GetInstance().bWii;
+  return Core::System::GetInstance().IsWii();
 }
 
 void InterruptRequest()
 {
   // Fire an interrupt on the PPC ASAP.
-  DSP::GenerateDSPInterruptFromDSPEmu(DSP::INT_DSP);
+  Core::System::GetInstance().GetDSP().GenerateDSPInterruptFromDSPEmu(DSP::INT_DSP);
 }
 
 void CodeLoaded(DSPCore& dsp, u32 addr, size_t size)
 {
   auto& system = Core::System::GetInstance();
   auto& memory = system.GetMemory();
-  CodeLoaded(dsp, memory.GetPointer(addr), size);
+  CodeLoaded(dsp, memory.GetPointerForRange(addr, size), size);
 }
 
 void CodeLoaded(DSPCore& dsp, const u8* ptr, size_t size)

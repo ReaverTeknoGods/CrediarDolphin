@@ -3,11 +3,20 @@
 
 #pragma once
 
+#include <array>
+#include <functional>
+#include <memory>
 #include <string>
+#include <utility>
 
 #include "Common/CommonTypes.h"
 #include "Core/HW/EXI/EXI_Device.h"
 #include "Common/IOFile.h"
+
+namespace Core
+{
+class System;
+}
 
 namespace ExpansionInterface
 {
@@ -153,7 +162,7 @@ namespace ExpansionInterface
   class CEXIRVA : public IEXIDevice
   {
   public:
-    explicit CEXIRVA();
+    explicit CEXIRVA(Core::System& system);
     virtual ~CEXIRVA();
 
     bool IsPresent() const override;

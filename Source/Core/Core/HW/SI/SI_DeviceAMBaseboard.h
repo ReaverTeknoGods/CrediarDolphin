@@ -17,8 +17,7 @@ namespace SerialInterface
 // triforce (GC-AM) baseboard
 class CSIDevice_AMBaseboard : public ISIDevice
 {
-
-  
+   
 typedef struct
   {
     unsigned short button;       // Or-ed PAD_BUTTON_* and PAD_TRIGGER_* bits
@@ -94,16 +93,16 @@ private:
 
 public:
   // constructor
-  CSIDevice_AMBaseboard(SIDevices device, int _iDeviceNumber);
+  CSIDevice_AMBaseboard(Core::System& system, SIDevices device, int device_number);
 
   // run the SI Buffer
-  int RunBuffer(u8* _pBuffer, int request_length) override;
+  int RunBuffer(u8* buffer, int request_length) override;
 
   // return true on new data
-  bool GetData(u32& _Hi, u32& _Low) override;
+  bool GetData(u32& hi, u32& low) override;
 
   // send a command directly
-  void SendCommand(u32 _Cmd, u8 _Poll) override;
+  void SendCommand(u32 command, u8 poll) override;
 };
 
 }  // namespace SerialInterface

@@ -7,11 +7,10 @@ endif()
 set(SRCS
   implot/implot.cpp
   implot/implot_items.cpp
-  implot/implot_demo.cpp
 )
 
 add_library(implot STATIC ${SRCS})
-dolphin_disable_warnings_msvc(implot)
+dolphin_disable_warnings(implot)
 target_include_directories(implot
   PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/implot"
   PRIVATE imgui

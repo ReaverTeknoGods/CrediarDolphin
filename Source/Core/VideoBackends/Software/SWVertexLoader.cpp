@@ -18,6 +18,7 @@
 #include "VideoBackends/Software/Tev.h"
 #include "VideoBackends/Software/TransformUnit.h"
 
+#include "VideoCommon/BoundingBox.h"
 #include "VideoCommon/CPMemory.h"
 #include "VideoCommon/DataReader.h"
 #include "VideoCommon/IndexGenerator.h"
@@ -62,8 +63,8 @@ void SWVertexLoader::DrawCurrentBatch(u32 base_index, u32 num_indices, u32 base_
   }
 
   // Flush bounding box here because software overrides the base function
-  if (g_renderer->IsBBoxEnabled())
-    g_renderer->BBoxFlush();
+  if (g_bounding_box->IsEnabled())
+    g_bounding_box->Flush();
 
   m_setup_unit.Init(primitive_type);
   Rasterizer::SetTevKonstColors();
@@ -148,11 +149,14 @@ static void ReadVertexAttribute(T* dst, DataReader src, const AttributeFormat& f
         dst[i_dst] = ReadNormalized<T, s16>(src.Read<s16, swap>());
         break;
       case ComponentFormat::Float:
+      case ComponentFormat::InvalidFloat5:
+      case ComponentFormat::InvalidFloat6:
+      case ComponentFormat::InvalidFloat7:
         dst[i_dst] = ReadNormalized<T, float>(src.Read<float, swap>());
         break;
       }
 
-      ASSERT_MSG(VIDEO, !format.integer || format.type != ComponentFormat::Float,
+      ASSERT_MSG(VIDEO, !format.integer || (format.type < ComponentFormat::Float),
                  "only non-float values are allowed to be streamed as integer");
     }
     for (; i < components; i++)

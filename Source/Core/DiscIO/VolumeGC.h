@@ -52,8 +52,6 @@ public:
 
   std::array<u8, 20> GetSyncHash() const override;
 
-  mutable Region m_triforce_region;
-
 private:
   static const u32 GC_BANNER_WIDTH = 96;
   static const u32 GC_BANNER_HEIGHT = 32;

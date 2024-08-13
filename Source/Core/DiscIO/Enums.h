@@ -48,7 +48,7 @@ enum class Region
   PAL = 2,      // Mainly Europe and Oceania
   Unknown = 3,  // Nintendo uses this to mean region free, but we also use it for unknown regions
   NTSC_K = 4,   // South Korea (Wii only)
-  RGB    = 5    // Wii Arcade System
+  RGB = 5       // Wii Arcade System
 };
 
 // Languages 0 - 9 match Nintendo's Wii language numbering.
@@ -71,6 +71,7 @@ enum class Language
 
 std::string GetName(Country country, bool translate);
 std::string GetName(Language language, bool translate);
+std::string GetName(Region region, bool translate);
 
 bool IsDisc(Platform volume_type);
 bool IsWii(Platform volume_type);

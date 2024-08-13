@@ -216,15 +216,15 @@ static u32 fmix32(u32 h)
 static void bmix32(u32& h1, u32& h2, u32& k1, u32& k2, u32& c1, u32& c2)
 {
   k1 *= c1;
-  k1 = Common::RotateLeft(k1, 11);
+  k1 = std::rotl(k1, 11);
   k1 *= c2;
   h1 ^= k1;
   h1 += h2;
 
-  h2 = Common::RotateLeft(h2, 17);
+  h2 = std::rotl(h2, 17);
 
   k2 *= c2;
-  k2 = Common::RotateLeft(k2, 11);
+  k2 = std::rotl(k2, 11);
   k2 *= c1;
   h2 ^= k2;
   h2 += h1;
@@ -359,30 +359,6 @@ static u64 GetHash64_SSE42_CRC32(const u8* src, u32 len, u32 samples)
   return h[0] + (h[1] << 10) + (h[2] << 21) + (h[3] << 32);
 }
 
-#elif defined(_M_X86)
-
-FUNCTION_TARGET_SSE42
-static u64 GetHash64_SSE42_CRC32(const u8* src, u32 len, u32 samples)
-{
-  u32 h = len;
-  u32 Step = (len / 4);
-  const u32* data = (const u32*)src;
-  const u32* end = data + Step;
-  if (samples == 0)
-    samples = std::max(Step, 1u);
-  Step = Step / samples;
-  if (Step < 1)
-    Step = 1;
-  while (data < end)
-  {
-    h = _mm_crc32_u32(h, data[0]);
-    data += Step;
-  }
-
-  const u8* data2 = (const u8*)end;
-  return (u64)_mm_crc32_u32(h, u32(data2[0]));
-}
-
 #elif defined(_M_ARM_64)
 
 static u64 GetHash64_ARMv8_CRC32(const u8* src, u32 len, u32 samples)
@@ -433,7 +409,7 @@ static u64 SetHash64Function(const u8* src, u32 len, u32 samples)
 {
   if (cpu_info.bCRC32)
   {
-#if defined(_M_X86_64) || defined(_M_X86)
+#if defined(_M_X86_64)
     s_texture_hash_func = &GetHash64_SSE42_CRC32;
 #elif defined(_M_ARM_64)
     s_texture_hash_func = &GetHash64_ARMv8_CRC32;

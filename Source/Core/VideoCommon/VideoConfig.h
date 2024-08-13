@@ -21,10 +21,13 @@ constexpr int EFB_SCALE_AUTO_INTEGRAL = 0;
 
 enum class AspectMode : int
 {
-  Auto,
-  AnalogWide,
-  Analog,
+  Auto,           // ~4:3 or ~16:9 (auto detected)
+  ForceWide,      // ~16:9
+  ForceStandard,  // ~4:3
   Stretch,
+  Custom,         // Forced relative custom AR
+  CustomStretch,  // Forced absolute custom AR
+  Raw,            // Forced squared pixels
 };
 
 enum class StereoMode : int
@@ -52,11 +55,55 @@ enum class TextureFilteringMode : int
   Linear,
 };
 
+enum class OutputResamplingMode : int
+{
+  Default,
+  Bilinear,
+  BSpline,
+  MitchellNetravali,
+  CatmullRom,
+  SharpBilinear,
+  AreaSampling,
+};
+
+enum class ColorCorrectionRegion : int
+{
+  SMPTE_NTSCM,
+  SYSTEMJ_NTSCJ,
+  EBU_PAL,
+};
+
 enum class TriState : int
 {
   Off,
   On,
   Auto
+};
+
+enum class FrameDumpResolutionType : int
+{
+  // Window resolution (not including potential back buffer black borders)
+  WindowResolution,
+  // The aspect ratio corrected XFB resolution (XFB pixels might not have been square)
+  XFBAspectRatioCorrectedResolution,
+  // The raw unscaled XFB resolution (based on "internal resolution" scale)
+  XFBRawResolution,
+};
+
+// Bitmask containing information about which configuration has changed for the backend.
+enum ConfigChangeBits : u32
+{
+  CONFIG_CHANGE_BIT_HOST_CONFIG = (1 << 0),
+  CONFIG_CHANGE_BIT_MULTISAMPLES = (1 << 1),
+  CONFIG_CHANGE_BIT_STEREO_MODE = (1 << 2),
+  CONFIG_CHANGE_BIT_TARGET_SIZE = (1 << 3),
+  CONFIG_CHANGE_BIT_ANISOTROPY = (1 << 4),
+  CONFIG_CHANGE_BIT_FORCE_TEXTURE_FILTERING = (1 << 5),
+  CONFIG_CHANGE_BIT_VSYNC = (1 << 6),
+  CONFIG_CHANGE_BIT_BBOX = (1 << 7),
+  CONFIG_CHANGE_BIT_ASPECT_RATIO = (1 << 8),
+  CONFIG_CHANGE_BIT_POST_PROCESSING_SHADER = (1 << 9),
+  CONFIG_CHANGE_BIT_HDR = (1 << 10),
 };
 
 // NEVER inherit from this class.
@@ -71,7 +118,13 @@ struct VideoConfig final
   bool bVSyncActive = false;
   bool bWidescreenHack = false;
   AspectMode aspect_mode{};
+  int custom_aspect_width = 1;
+  int custom_aspect_height = 1;
   AspectMode suggested_aspect_mode{};
+  u32 widescreen_heuristic_transition_threshold = 0;
+  float widescreen_heuristic_aspect_ratio_slop = 0.f;
+  float widescreen_heuristic_standard_ratio = 0.f;
+  float widescreen_heuristic_widescreen_ratio = 0.f;
   bool bCrop = false;  // Aspect ratio controls.
   bool bShaderCache = false;
 
@@ -80,12 +133,34 @@ struct VideoConfig final
   bool bSSAA = false;
   int iEFBScale = 0;
   TextureFilteringMode texture_filtering_mode = TextureFilteringMode::Default;
+  OutputResamplingMode output_resampling_mode = OutputResamplingMode::Default;
   int iMaxAnisotropy = 0;
   std::string sPostProcessingShader;
   bool bForceTrueColor = false;
   bool bDisableCopyFilter = false;
   bool bArbitraryMipmapDetection = false;
   float fArbitraryMipmapDetectionThreshold = 0;
+  bool bHDR = false;
+
+  // Color Correction
+  struct
+  {
+    // Color Space Correction:
+    bool bCorrectColorSpace = false;
+    ColorCorrectionRegion game_color_space = ColorCorrectionRegion::SMPTE_NTSCM;
+
+    // Gamma Correction:
+    bool bCorrectGamma = false;
+    float fGameGamma = 2.35f;
+    bool bSDRDisplayGammaSRGB = true;
+    // Custom gamma when the display is not sRGB
+    float fSDRDisplayCustomGamma = 2.2f;
+
+    // HDR:
+    // 203 is a good default value that matches the brightness of many SDR screens.
+    // It's also the value recommended by the ITU.
+    float fHDRPaperWhiteNits = 203.f;
+  } color_correction;
 
   // Information
   bool bShowFPS = false;
@@ -124,7 +199,8 @@ struct VideoConfig final
   std::string sDumpEncoder;
   std::string sDumpFormat;
   std::string sDumpPath;
-  bool bInternalResolutionFrameDumps = false;
+  FrameDumpResolutionType frame_dumps_resolution_type =
+      FrameDumpResolutionType::XFBAspectRatioCorrectedResolution;
   bool bBorderlessFullscreen = false;
   bool bEnableGPUTextureDecoding = false;
   bool bPreferVSForLinePointExpansion = false;
@@ -138,6 +214,7 @@ struct VideoConfig final
   bool bPerfQueriesEnable = false;
   bool bBBoxEnable = false;
   bool bForceProgressive = false;
+  bool bCPUCull = false;
 
   bool bEFBEmulateFormatChanges = false;
   bool bSkipEFBCopyToRam = false;
@@ -153,6 +230,7 @@ struct VideoConfig final
   bool bEnablePixelLighting = false;
   bool bFastDepthCalc = false;
   bool bVertexRounding = false;
+  bool bVISkip = false;
   int iEFBAccessTileSize = 0;
   int iSaveTargetId = 0;  // TODO: Should be dropped
   u32 iMissingColorValue = 0;
@@ -175,7 +253,7 @@ struct VideoConfig final
 
   // Metal only config
   TriState iManuallyUploadBuffers = TriState::Auto;
-  bool bUsePresentDrawable = false;
+  TriState iUsePresentDrawable = TriState::Auto;
 
   // Enable API validation layers, currently only supported with Vulkan.
   bool bEnableValidationLayer = false;
@@ -197,6 +275,9 @@ struct VideoConfig final
   int iShaderCompilerThreads = 0;
   int iShaderPrecompilerThreads = 0;
 
+  // Loading custom drivers on Android
+  std::string customDriverLibraryName;
+
   // Static config per API
   // TODO: Move this out of VideoConfig
   struct
@@ -212,6 +293,7 @@ struct VideoConfig final
 
     u32 MaxTextureSize = 16384;
     bool bUsesLowerLeftOrigin = false;
+    bool bUsesExplictQuadBuffering = false;
 
     bool bSupportsExclusiveFullscreen = false;
     bool bSupportsDualSourceBlend = false;
@@ -253,6 +335,8 @@ struct VideoConfig final
     bool bSupportsPartialMultisampleResolve = false;
     bool bSupportsDynamicVertexLoader = false;
     bool bSupportsVSLinePointExpand = false;
+    bool bSupportsGLLayerInFS = true;
+    bool bSupportsHDROutput = false;
   } backend_info;
 
   // Utility
@@ -297,6 +381,8 @@ struct VideoConfig final
   bool UsingUberShaders() const;
   u32 GetShaderCompilerThreads() const;
   u32 GetShaderPrecompilerThreads() const;
+
+  float GetCustomAspectRatio() const { return (float)custom_aspect_width / custom_aspect_height; }
 };
 
 extern VideoConfig g_Config;
@@ -304,3 +390,4 @@ extern VideoConfig g_ActiveConfig;
 
 // Called every frame.
 void UpdateActiveConfig();
+void CheckForConfigChanges();

@@ -251,7 +251,7 @@ void BreakpointDialog::OnAddressTypeChanged()
 
 void BreakpointDialog::accept()
 {
-  auto invalid_input = [this](QString field) {
+  auto invalid_input = [this](const QString& field) {
     ModalMessageBox::critical(this, tr("Error"),
                               tr("Invalid input for the field \"%1\"").arg(field));
   };
@@ -289,7 +289,7 @@ void BreakpointDialog::accept()
       return;
     }
 
-    m_parent->AddBP(address, false, do_break, do_log, condition);
+    m_parent->AddBP(address, do_break, do_log, condition);
   }
   else
   {
@@ -323,7 +323,7 @@ void BreakpointDialog::accept()
 
 void BreakpointDialog::ShowConditionHelp()
 {
-  const auto message = QStringLiteral(
+  const auto message = tr(
       "Conditions:\n"
       "Sets an expression that is evaluated when a breakpoint is hit. If the expression is false "
       "or 0, the breakpoint is ignored until hit again. Statements should be separated by a comma. "
@@ -331,12 +331,18 @@ void BreakpointDialog::ShowConditionHelp()
       "\n"
       "Registers that can be referenced:\n"
       "GPRs : r0..r31\n"
-      "FPRs : f0..f31\n LR, CTR, PC\n"
+      "FPRs : f0..f31\n"
+      "SPRs : xer, lr, ctr, dsisr, dar, dec, sdr1, srr0, srr1, tbl, tbu, pvr, sprg0..sprg3, ear, "
+      "ibat0u..ibat7u, ibat0l..ibat7l, dbat0u..dbat7u, dbat0l..dbat07, gqr0..gqr7, hid0, hid1, "
+      "hid2, hid4, iabr, dabr, wpar, dmau, dmal, ecid_u, ecid_m, ecid_l, upmc1..upmc4, usia, sia, "
+      "l2cr, ictc, mmcr0, mmcr1, pmc1..pmc4, thrm1..thrm3\n"
+      "Other : pc, msr\n"
       "\n"
       "Functions:\n"
       "Set a register: r1 = 8\n"
       "Casts: s8(0xff). Available: s8, u8, s16, u16, s32, u32\n"
       "Callstack: callstack(0x80123456), callstack(\"anim\")\n"
+      "Compare Strings: streq(r3, \"abc\"). Both parameters can be addresses or string constants.\n"
       "Read Memory: read_u32(0x80000000). Available: u8, s8, u16, s16, u32, s32, f32, f64\n"
       "Write Memory: write_u32(r3, 0x80000000). Available: u8, u16, u32, f32, f64\n"
       "*currently writing will always be triggered\n"
@@ -355,8 +361,8 @@ void BreakpointDialog::ShowConditionHelp()
       "Write and break: r4 = 8, 1\n"
       "Write and continue: f3 = f1 + f2, 0\n"
       "The condition must always be last\n\n"
-      "Strings should only be used in callstack() and \"quoted\". Do not assign strings to a "
-      "variable.\n"
+      "Strings should only be used in callstack() or streq() and \"quoted\". Do not assign strings "
+      "to a variable.\n"
       "All variables will be printed in the Memory Interface log, if there's a hit or a NaN "
       "result. To check for issues, assign a variable to your equation, so it can be printed.\n\n"
       "Note: All values are internally converted to Doubles for calculations. It's possible for "
