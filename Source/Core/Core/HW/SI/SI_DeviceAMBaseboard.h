@@ -14,49 +14,130 @@
 
 namespace SerialInterface
 {
+
+// "JAMMA Video Standard" I/O
+class JVSIOMessage
+{
+public:
+  u32 m_ptr, m_last_start, m_csum;
+  u8 m_msg[0x80];
+
+  JVSIOMessage();
+  void start(int node);
+  void addData(const u8* dst, size_t len, int sync);
+  void addData(const void* data, size_t len);
+  void addData(const char* data);
+  void addData(u32 n);
+  void end();
+};  // end class JVSIOMessage
+
 // triforce (GC-AM) baseboard
 class CSIDevice_AMBaseboard : public ISIDevice
 {
-   
-typedef struct
-  {
-    unsigned short button;       // Or-ed PAD_BUTTON_* and PAD_TRIGGER_* bits
-    unsigned char stickX;        // 0 <= stickX       <= 255
-    unsigned char stickY;        // 0 <= stickY       <= 255
-    unsigned char substickX;     // 0 <= substickX    <= 255
-    unsigned char substickY;     // 0 <= substickY    <= 255
-    unsigned char triggerLeft;   // 0 <= triggerLeft  <= 255
-    unsigned char triggerRight;  // 0 <= triggerRight <= 255
-    unsigned char analogA;       // 0 <= analogA      <= 255
-    unsigned char analogB;       // 0 <= analogB      <= 255
-    signed char err;             // one of PAD_ERR_* number
-  } SPADStatus;
-
 private:
-  enum EBufferCommands
+  enum BaseBoardCommands
   {
     CMD_RESET = 0x00,
     CMD_GCAM = 0x70,
   };
-  enum CARDCommands
+
+  enum JVSIOCommands
   {
-    CARD_INIT = 0x10,
-    CARD_GET_CARD_STATE = 0x20,
-    CARD_READ = 0x33,
-    CARD_IS_PRESENT = 0x40,
-    CARD_WRITE = 0x53,
-    CARD_SET_PRINT_PARAM = 0x78,
-    CARD_REGISTER_FONT = 0x7A,
-    CARD_WRITE_INFO = 0x7C,
-    CARD_ERASE = 0x7D,
-    CARD_EJECT = 0x80,
-    CARD_CLEAN_CARD = 0xA0,
-    CARD_LOAD_CARD = 0xB0,
-    CARD_SET_SHUTTER = 0xD0,
+    IOID = 0x10,
+    CommandRevision = 0x11,
+    JVRevision = 0x12,
+    CommunicationVersion = 0x13,
+    CheckFunctionality = 0x14,
+    MainID = 0x15,
+
+    SwitchesInput = 0x20,
+    CoinInput = 0x21,
+    AnalogInput = 0x22,
+    RotaryInput = 0x23,
+    KeyCodeInput = 0x24,
+    PositionInput = 0x25,
+    GeneralSwitchInput = 0x26,
+
+    PayoutRemain = 0x2E,
+    Retrans = 0x2F,
+    CoinSubOutput = 0x30,
+    PayoutAddOutput = 0x31,
+    GeneralDriverOutput = 0x32,
+    AnalogOutput = 0x33,
+    CharacterOutput = 0x34,
+    CoinAddOutput = 0x35,
+    PayoutSubOutput = 0x36,
+    GeneralDriverOutput2 = 0x37,
+    GeneralDriverOutput3 = 0x38,
+
+    NAMCOCommand = 0x70,
+
+    Reset = 0xF0,
+    SetAddress = 0xF1,
+    ChangeComm = 0xF2,
   };
 
-  unsigned short m_coin[2];
-  int m_coin_pressed[2];
+  enum CARDCommands
+  {
+    Init = 0x10,
+    GetCardState = 0x20,
+    Read = 0x33,
+    IsPresent = 0x40,
+    Write = 0x53,
+    SetPrintParam = 0x78,
+    RegisterFont = 0x7A,
+    WriteInfo = 0x7C,
+    Erase = 0x7D,
+    Eject = 0x80,
+    CleanCard = 0xA0,
+    LoadCard = 0xB0,
+    SetShutter = 0xD0,
+  };
+
+  enum ICCARDCommands
+  {
+    GetStatus = 0x10,
+    SetBaudrate = 0x11,
+    FieldOn = 0x14,
+    FieldOff = 0x15,
+    InsertCheck = 0x20,
+    AntiCollision = 0x21,
+    SelectCard = 0x22,
+    ReadPage = 0x24,
+    WritePage = 0x25,
+    DecreaseUseCount = 0x26,
+    ReadUseCount = 0x33,
+    ReadPages = 0x34,
+    WritePages = 0x35,
+  };
+
+  union ICCommand
+  {
+    u8 data[64 + 4 + 4 + 4];
+
+    struct
+    {
+      u32 pktcmd : 8;
+      u32 pktlen : 8;
+      u32 fixed : 8;
+      u32 command : 8;
+      u32 length : 16;
+      u32 status : 16;
+
+      u8 extdata[64];
+      u32 extlen;
+    };
+  };
+
+  u16 m_coin[2];
+  u32 m_coin_pressed[2];
+
+  u8 m_ic_card_data[2048];
+  u16 m_ic_card_state;
+  u16 m_ic_card_session;
+  u8 m_ic_write_buffer[512];
+  u32 m_ic_write_offset;
+  u32 m_ic_write_size;
 
   u8 m_card_memory[0xD0];
   u8 m_card_read_packet[0xDB];
@@ -71,7 +152,7 @@ private:
   u32 m_card_read;
   u32 m_card_bit;
   u32 m_card_state_call_count;
-  u8  m_card_offset;
+  u8 m_card_offset;
 
   u32 m_wheelinit;
 
@@ -89,7 +170,9 @@ private:
   u32 m_fzcc_seatbelt;
   u32 m_fzcc_sensor;
   u32 m_fzcc_emergency;
-  u32 m_fzcc_service; 
+  u32 m_fzcc_service;
+
+  void ICCardSendReply(ICCommand* iccommand, u8* buffer, u32* length);
 
 public:
   // constructor

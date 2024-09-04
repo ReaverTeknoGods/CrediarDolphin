@@ -30,7 +30,7 @@ enum class EXIDeviceType : int
   AD16,
   Microphone,
   Ethernet,
-  AMBaseboard,
+  AMMediaboard,
   Gecko,
   // Only used when creating a device by EXIDevice_Create.
   // Converted to MemoryCard internally.

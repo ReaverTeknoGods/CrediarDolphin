@@ -68,17 +68,20 @@
     <BuildInfoTemplate>Common\build_info.txt.in</BuildInfoTemplate>
     <BuildInfoOutput>$(BinaryOutputDir)build_info.txt</BuildInfoOutput>
   </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Lib />
+  </ItemDefinitionGroup>
   <ItemGroup>
     <Text Include="$(BuildInfoTemplate)" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Core\HW\DVD\AMBaseboard.cpp" />
+    <ClCompile Include="Core\HW\DVD\AMMediaboard.cpp" />
     <ClCompile Include="Core\HW\EXI\EXI_DeviceAMBaseboard.cpp" />
     <ClCompile Include="Core\HW\EXI\EXI_DeviceRVA.cpp" />
     <ClCompile Include="Core\HW\SI\SI_DeviceAMBaseboard.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Core\HW\DVD\AMBaseboard.h" />
+    <ClInclude Include="Core\HW\DVD\AMMediaboard.h" />
     <ClInclude Include="Core\HW\EXI\EXI_DeviceAMBaseboard.h" />
     <ClInclude Include="Core\HW\EXI\EXI_DeviceRVA.h" />
     <ClInclude Include="Core\HW\SI\SI_DeviceAMBaseboard.h" />

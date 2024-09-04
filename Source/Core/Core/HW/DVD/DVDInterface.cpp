@@ -27,9 +27,9 @@
 #include "Core/CoreTiming.h"
 #include "Core/DolphinAnalytics.h"
 #include "Core/HW/AudioInterface.h"
+#include "Core/HW/DVD/AMMediaboard.h"
 #include "Core/HW/DVD/DVDMath.h"
 #include "Core/HW/DVD/DVDThread.h"
-#include "Core/HW/DVD/AMBaseboard.h"
 #include "Core/HW/EXI/EXI_DeviceIPL.h"
 #include "Core/HW/MMIO.h"
 #include "Core/HW/Memmap.h"
@@ -81,9 +81,6 @@ constexpr u32 DI_DMA_LENGTH_REGISTER = 0x18;
 constexpr u32 DI_DMA_CONTROL_REGISTER = 0x1C;
 constexpr u32 DI_IMMEDIATE_DATA_BUFFER = 0x20;
 constexpr u32 DI_CONFIG_REGISTER = 0x24;
-
-// Triforce
-bool enable_gcam = false;
 
 DVDInterface::DVDInterface(Core::System& system) : m_system(system)
 {
@@ -290,10 +287,10 @@ void DVDInterface::Init()
   core_timing.ScheduleEvent(0, m_finish_executing_command, userdata);
 
   const ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SERIAL_PORT_1);
-  enable_gcam = (Type == ExpansionInterface::EXIDeviceType::AMBaseboard) ? 1 : 0;
-  if (enable_gcam)
+  m_enable_gcam = (Type == ExpansionInterface::EXIDeviceType::AMMediaboard) ? 1 : 0;
+  if (m_enable_gcam)
   {
-    AMBaseboard::Init();
+    AMMediaboard::Init();
   }
 }
 
@@ -780,15 +777,15 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
   DIInterruptType interrupt_type = DIInterruptType::TCINT;
   bool command_handled_by_thread = false;
 
-  if (enable_gcam)
+  if (m_enable_gcam)
   {
-    u32 ret = AMBaseboard::ExecuteCommand(m_DICMDBUF, m_DIMAR, m_DILENGTH);
+    u32 ret = AMMediaboard::ExecuteCommand(m_DICMDBUF, m_DIMAR, m_DILENGTH);
     if (ret != 1)
     {
       if (m_DICMDBUF[0] == 0x12000000)
-          m_DIIMMBUF = ret;
+        m_DIIMMBUF = ret;
 
-      // transfer is done
+      // Transfer is done
       m_DICR.TSTART = 0;
       m_DIMAR += m_DILENGTH;
       m_DILENGTH = 0;
@@ -809,7 +806,7 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
   // Used by both GC and Wii
   case DICommand::Inquiry:
   {
-    // (shuffle2) Taken from my Wii 
+    // (shuffle2) Taken from my Wii
     memory.Write_U32(0x00000002, m_DIMAR);      // Revision level, device code
     memory.Write_U32(0x20060526, m_DIMAR + 4);  // Release date
     memory.Write_U32(0x41000000, m_DIMAR + 8);  // Version
@@ -941,7 +938,7 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
     // NSMBW checks that the first 0x33 bytes of the BCA are 0, then it expects a 1.
     // Most (all?) other games have 0x34 0's at the start of the BCA, but don't actually
     // read it.  NSMBW doesn't care about the other 12 bytes (which contain manufacturing data?)
-     
+
     // TODO: Read the .bca file that cleanrip generates, if it exists
     // memory.CopyToEmu(output_address, bca_data, 0x40);
     memory.Memset(m_DIMAR, 0, 0x40);

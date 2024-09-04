@@ -16,6 +16,7 @@
 #include "Core/HLE/HLE_Misc.h"
 #include "Core/HLE/HLE_OS.h"
 #include "Core/HW/Memmap.h"
+#include "Core/HW/DVD/AMMediaboard.h"
 #include "Core/IOS/ES/ES.h"
 #include "Core/PowerPC/PPCSymbolDB.h"
 #include "Core/PowerPC/PowerPC.h"

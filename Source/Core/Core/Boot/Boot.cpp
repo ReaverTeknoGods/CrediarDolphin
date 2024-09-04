@@ -36,7 +36,7 @@
 #include "Core/FifoPlayer/FifoPlayer.h"
 #include "Core/HLE/HLE.h"
 #include "Core/HW/DVD/DVDInterface.h"
-#include "Core/HW/DVD/AMBaseboard.h"
+#include "Core/HW/DVD/AMMediaboard.h"
 #include "Core/HW/EXI/EXI_DeviceIPL.h"
 #include "Core/HW/Memmap.h"
 #include "Core/HW/VideoInterface.h"
@@ -484,8 +484,8 @@ bool CBoot::Load_BS2(Core::System& system, const std::string& boot_rom_filename)
     HLE::Patch(system, 0x813048B8, "OSReport");
     HLE::Patch(system, 0x8130095C, "OSReport");  // Apploader
 
-    // AMBaseboard::InitDIMM();
-    AMBaseboard::FirmwareMap(true);
+    // AMMediaboard::InitDIMM();
+    AMMediaboard::FirmwareMap(true);
   }
 
   ppc_state.pc = 0x81200150;

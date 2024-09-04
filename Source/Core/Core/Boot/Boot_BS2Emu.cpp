@@ -22,7 +22,7 @@
 #include "Core/Debugger/BranchWatch.h"
 #include "Core/HLE/HLE.h"
 #include "Core/HW/DVD/DVDInterface.h"
-#include "Core/HW/DVD/AMBaseboard.h"
+#include "Core/HW/DVD/AMMediaboard.h"
 #include "Core/HW/EXI/EXI_DeviceIPL.h"
 #include "Core/HW/Memmap.h"
 #include "Core/IOS/DI/DI.h"
@@ -331,16 +331,16 @@ bool CBoot::EmulatedBS2_GC(Core::System& system, const Core::CPUThreadGuard& gua
 
   // Check for Triforce board being connected
   const ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SERIAL_PORT_1);
-  bool enable_gcam = (Type == ExpansionInterface::EXIDeviceType::AMBaseboard) ? 1 : 0;
+  bool enable_gcam = (Type == ExpansionInterface::EXIDeviceType::AMMediaboard) ? 1 : 0;
   if (enable_gcam)
   {
     // Load game into RAM, like on the actual Triforce
-    u8* dimm_disc = AMBaseboard::InitDIMM();
+    u8* dimm_disc = AMMediaboard::InitDIMM();
     volume.Read(0, 0x20000000, dimm_disc, DiscIO::PARTITION_NONE);
 
     // Triforce disc register obfucation
-    AMBaseboard::InitKeys(memory.Read_U32(0), memory.Read_U32(4), memory.Read_U32(8));
-    AMBaseboard::FirmwareMap(false);
+    AMMediaboard::InitKeys(memory.Read_U32(0), memory.Read_U32(4), memory.Read_U32(8));
+    AMMediaboard::FirmwareMap(false);
   }
 
   return ret;

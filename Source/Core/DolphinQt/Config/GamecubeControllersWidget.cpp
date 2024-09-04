@@ -134,6 +134,7 @@ void GamecubeControllersWidget::OnGCPadConfigure(size_t index)
   case SerialInterface::SIDEVICE_NONE:
   case SerialInterface::SIDEVICE_GC_GBA:
     return;
+  case SerialInterface::SIDEVICE_AM_BASEBOARD:
   case SerialInterface::SIDEVICE_GC_CONTROLLER:
     type = MappingWindow::Type::MAPPING_GCPAD;
     break;

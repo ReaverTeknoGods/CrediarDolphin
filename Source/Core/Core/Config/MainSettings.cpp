@@ -303,7 +303,7 @@ const Info<bool> MAIN_SHOW_LAG{{System::Main, "General", "ShowLag"}, false};
 const Info<bool> MAIN_SHOW_FRAME_COUNT{{System::Main, "General", "ShowFrameCount"}, false};
 const Info<std::string> MAIN_WIRELESS_MAC{{System::Main, "General", "WirelessMac"}, ""};
 const Info<std::string> MAIN_GDB_SOCKET{{System::Main, "General", "GDBSocket"}, ""};
-const Info<int> MAIN_GDB_PORT{{System::Main, "General", "GDBPort"}, -1};
+const Info<int> MAIN_GDB_PORT{{System::Main, "General", "GDBPort"}, 33345};
 const Info<int> MAIN_ISO_PATH_COUNT{{System::Main, "General", "ISOPaths"}, 0};
 const Info<std::string> MAIN_SKYLANDERS_PATH{{System::Main, "General", "SkylandersCollectionPath"},
                                              ""};
@@ -615,7 +615,7 @@ std::string GetBootROMPath(const std::string& region_directory)
 {
   // Load Triforce IPL but only when using Triforce
   const ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SERIAL_PORT_1);
-  if (Type == ExpansionInterface::EXIDeviceType::AMBaseboard)
+  if (Type == ExpansionInterface::EXIDeviceType::AMMediaboard)
   {
     const std::string path =
         File::GetUserPath(D_GCUSER_IDX) + DIR_SEP + region_directory + DIR_SEP GC_TRI_IPL;

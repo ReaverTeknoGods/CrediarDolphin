@@ -1,8 +1,7 @@
 // Copyright 2017 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-
-#include "Core/BootManager.h"
+#include "Core/HW/EXI/EXI_DeviceAMBaseboard.h"
 
 #include <algorithm>
 #include <memory>
@@ -18,7 +17,7 @@
 #include "Common/IniFile.h"
 #include "Common/Logging/Log.h"
 #include "Common/IOFile.h"
-
+#include "Core/BootManager.h"
 #include "Core/Boot/Boot.h"
 #include "Core/Config/MainSettings.h"
 #include "Core/Config/SYSCONFSettings.h"
@@ -26,8 +25,9 @@
 #include "Core/ConfigLoaders/NetPlayConfigLoader.h"
 #include "Core/ConfigManager.h"
 #include "Core/Core.h"
-#include "Core/HW/DVD/AMBaseboard.h"
+#include "Core/HW/DVD/AMMediaboard.h"
 #include "Core/HW/EXI/EXI.h"
+#include "Core/HW/EXI/EXI_Device.h"
 #include "Core/HW/SI/SI.h"
 #include "Core/HW/SI/SI_Device.h"
 #include "Core/HW/MMIO.h"
@@ -40,11 +40,13 @@
 #include "Core/PowerPC/PowerPC.h"
 #include "Core/System.h"
 #include "Core/WiiRoot.h"
-
 #include "DiscIO/Enums.h"
 
-#include "EXI_Device.h"
-#include "EXI_DeviceAMBaseboard.h"
+
+
+bool g_interrupt_set = false;
+u32 g_irq_timer = 0;
+u32 g_irq_status = 0;
 
 static u16 CheckSum( u8 *Data, u32 Length)
 {
@@ -61,8 +63,19 @@ static u16 CheckSum( u8 *Data, u32 Length)
 namespace ExpansionInterface
 {
 
+void GenerateInterrupt(int flag)
+{
+  auto& system = Core::System::GetInstance();
+
+  g_interrupt_set = true;
+  g_irq_timer = 0;
+  g_irq_status = flag;
+
+  system.GetExpansionInterface().UpdateInterrupts();
+}
+
 CEXIAMBaseboard::CEXIAMBaseboard(Core::System& system)
-    : IEXIDevice(system), m_position(0), m_have_irq(false)
+    : IEXIDevice(system), m_position(0)
 {
   std::string backup_Filename(File::GetUserPath(D_TRIUSER_IDX) + "tribackup_" +
                               SConfig::GetInstance().GetGameID().c_str() + ".bin");
@@ -76,15 +89,20 @@ CEXIAMBaseboard::CEXIAMBaseboard(Core::System& system)
     m_backup = new File::IOFile(backup_Filename, "wb+");
   }
 
-  if (!m_backup)
+  // Some games share the same ID Client/Server
+  if (!m_backup->IsGood())
   {
     PanicAlertFmt("Failed to open tribackup\nFile might be in use.");
+
+    backup_Filename = File::GetUserPath(D_TRIUSER_IDX) + "tribackup_tmp_" + SConfig::GetInstance().GetGameID().c_str() + ".bin" ;
+
+    m_backup = new File::IOFile(backup_Filename, "wb+");
   }
 
-  // Virtua Striker 4 needs a higher FIRM version
+  // Virtua Striker 4 and Gekitou Pro Yakyuu need a higher FIRM version
   // Which is read from the backup data?!
-  if (AMBaseboard::GetGameType() == VirtuaStriker4 ||
-      AMBaseboard::GetGameType() == GekitouProYakyuu )
+  if (AMMediaboard::GetGameType() == VirtuaStriker4 ||
+      AMMediaboard::GetGameType() == GekitouProYakyuu)
   {
     if ( m_backup->GetSize() != 0 )
     {
@@ -114,7 +132,6 @@ CEXIAMBaseboard::~CEXIAMBaseboard()
   delete m_backup;
 }
 
-
 void CEXIAMBaseboard::SetCS(int cs)
 {
   DEBUG_LOG_FMT(SP1, "AM-BB ChipSelect={}", cs);
@@ -125,6 +142,21 @@ void CEXIAMBaseboard::SetCS(int cs)
 bool CEXIAMBaseboard::IsPresent() const
 {
 	return true;
+}
+
+bool CEXIAMBaseboard::IsInterruptSet()
+{
+  if (g_interrupt_set)
+  {
+    DEBUG_LOG_FMT(SP1, "AM-BB IRQ");
+    if (++g_irq_timer > 12)
+      g_interrupt_set = false;
+    return 1;
+  }
+  else
+  {
+    return 0;
+  }
 }
 
 void CEXIAMBaseboard::DMAWrite(u32 addr, u32 size)
@@ -140,6 +172,7 @@ void CEXIAMBaseboard::DMAWrite(u32 addr, u32 size)
 
   m_backup->WriteBytes(memory.GetPointer(addr), size); 
 }
+
 void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
 {
   auto& system = Core::System::GetInstance();
@@ -153,7 +186,8 @@ void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
 
   m_backup->ReadBytes(memory.GetPointer(addr), size);
 }
-  void CEXIAMBaseboard::TransferByte(u8& _byte)
+
+void CEXIAMBaseboard::TransferByte(u8& _byte)
 {
 	DEBUG_LOG_FMT(SP1, "AM-BB > {:02x}", _byte);
 	if (m_position < 4)
@@ -191,18 +225,18 @@ void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
 			{
       case AMBB_OFFSET_SET:
 				m_backoffset = (m_command[1] << 8) | m_command[2];
-				NOTICE_LOG_FMT(SP1,"AM-BB COMMAND: Backup Offset:{:04x}", m_backoffset );
+        DEBUG_LOG_FMT(SP1, "AM-BB COMMAND: Backup Offset:{:04x}", m_backoffset);
         m_backup->Seek(m_backoffset, File::SeekOrigin::Begin);
         _byte = 0x01;
       break;
       case AMBB_BACKUP_WRITE:
-        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: Backup Write:{:04x}-{:02x}", m_backoffset, m_command[1]);
+        DEBUG_LOG_FMT(SP1, "AM-BB COMMAND: Backup Write:{:04x}-{:02x}", m_backoffset, m_command[1]);
 				m_backup->WriteBytes( &m_command[1], 1 );
         m_backup->Flush();
 				_byte = 0x01;
 				break;
       case AMBB_BACKUP_READ:
-        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: Backup Read :{:04x}", m_backoffset);
+        DEBUG_LOG_FMT(SP1, "AM-BB COMMAND: Backup Read :{:04x}", m_backoffset);
         _byte = 0x01;
 				break;
       case AMBB_DMA_OFFSET_LENGTH_SET:
@@ -211,40 +245,37 @@ void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
         NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: Backup DMA :{:04x} {:02x}", m_backup_dma_off, m_backup_dma_len);
 				_byte = 0x01;
 				break;
-			// Clear IRQ
       case AMBB_ISR_READ:
-        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: ISRRead :{:02x} {:02x}", m_command[1], m_command[2]);	
+        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: ISRRead  :{:02x} {:02x}:{:02x} {:02x}", m_command[1], m_command[2], 4, g_irq_status);	
 				_byte = 0x04;
 				break;
-			// Unknown
-      case AMBB_UNKNOWN:
-        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: 0x83 :{:02x} {:02x}", m_command[1], m_command[2]);	
+      case AMBB_ISR_WRITE:
+        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: ISRWrite :{:02x} {:02x}", m_command[1], m_command[2]);
+        g_irq_status &= ~(m_command[2]);
 				_byte = 0x04;
 				break;
-			// Unknown - 2 byte out
+			// 2 byte out
       case AMBB_IMR_READ:
-        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: IMRRead :{:02x} {:02x}", m_command[1], m_command[2]);	
+        NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: IMRRead  :{:02x} {:02x}", m_command[1], m_command[2]);	
 				_byte = 0x04;
 				break;
-			// Unknown
       case AMBB_IMR_WRITE:
         NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: IMRWrite :{:02x} {:02x}", m_command[1], m_command[2]);	
 				_byte = 0x04;
 				break;
-			// Unknown
-			case 0xFF:
+      case AMBB_LANCNT_WRITE:
         NOTICE_LOG_FMT(SP1, "AM-BB COMMAND: LANCNTWrite :{:02x} {:02x}", m_command[1], m_command[2]);	
 				if( (m_command[1] == 0) && (m_command[2] == 0) )
 				{
-					m_have_irq = true;
-					m_irq_timer = 0;
-					m_irq_status = 0x02;
+					g_interrupt_set = true;
+					g_irq_timer = 0;
+					g_irq_status = 0x02;
 				}
 				if( (m_command[1] == 2) && (m_command[2] == 1) )
 				{
-					m_irq_status = 0;
+					g_irq_status = 0;
 				}
-				_byte = 0x04;
+        _byte = 0x08;
 				break;
 			default:
 				_byte = 4;
@@ -269,8 +300,8 @@ void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
       case AMBB_ISR_READ:
 				if(m_position == 6)
 				{
-					_byte = m_irq_status;
-					m_have_irq = false;
+					_byte = g_irq_status;
+					g_interrupt_set = false;
 				}
 				else
 				{
@@ -278,8 +309,11 @@ void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
 				}
 				break;
 			// 2 byte out
-			case AMBB_IMR_READ:
-				_byte = 0x00;
+      case AMBB_IMR_READ:
+        if (m_position == 5)
+          _byte = 0xFF;
+        if (m_position == 6)
+          _byte = 0x81;
 				break;
 			default:
         ERROR_LOG_FMT(SP1, "Unknown AM-BB command");
@@ -295,25 +329,11 @@ void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
 	m_position++;
 }
 
-bool CEXIAMBaseboard::IsInterruptSet()
-{
-	if (m_have_irq)
-	{
-		DEBUG_LOG_FMT(SP1, "AM-BB IRQ");
-		if( ++m_irq_timer > 12 )
-			m_have_irq = false;
-		return 1;
-	}
-	else
-	{
-		return 0;
-	}
-}
 
 void CEXIAMBaseboard::DoState(PointerWrap &p)
 {
 	p.Do(m_position);
-	p.Do(m_have_irq);
+	p.Do(g_interrupt_set);
 	p.Do(m_command);
 }
 

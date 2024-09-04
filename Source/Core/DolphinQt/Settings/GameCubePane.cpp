@@ -153,7 +153,7 @@ void GameCubePane::CreateWidgets()
            EXIDeviceType::EthernetTapServer,
            EXIDeviceType::EthernetBuiltIn,
            EXIDeviceType::ModemTapServer,
-           EXIDeviceType::AMBaseboard,
+           EXIDeviceType::AMMediaboard,
        })
   {
     m_slot_combos[ExpansionInterface::Slot::SP1]->addItem(tr(fmt::format("{:n}", device).c_str()),
@@ -425,7 +425,7 @@ void GameCubePane::OnConfigPressed(ExpansionInterface::Slot slot)
     dialog.exec();
     return;
   }
-  case ExpansionInterface::EXIDeviceType::AMBaseboard:
+  case ExpansionInterface::EXIDeviceType::AMMediaboard:
   {
     return;
   }
