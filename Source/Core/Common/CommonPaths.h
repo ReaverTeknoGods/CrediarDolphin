@@ -56,6 +56,8 @@
 #define GC_USER_DIR "GC"
 #define GBA_USER_DIR "GBA"
 #define WII_USER_DIR "Wii"
+#define TRI_USER_DIR "Triforce"
+#define RVA_USER_DIR "Arcade"
 #define CONFIG_DIR "Config"
 #define GAMESETTINGS_DIR "GameSettings"
 #define MAPS_DIR "Maps"

@@ -62,6 +62,7 @@
 #include "Core/HW/SystemTimers.h"
 #include "Core/HW/VideoInterface.h"
 #include "Core/HW/Wiimote.h"
+#include "Core/HW/DVD/AMMediaboard.h"
 #include "Core/Host.h"
 #include "Core/IOS/IOS.h"
 #include "Core/MemTools.h"
@@ -312,6 +313,8 @@ void Stop(Core::System& system)  // - Hammertime!
 
     g_video_backend->Video_ExitLoop();
   }
+
+  AMMediaboard::Shutdown();
 
   s_last_actual_emulation_speed = 1.0;
 }

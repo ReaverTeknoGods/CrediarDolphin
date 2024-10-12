@@ -14,6 +14,7 @@
 #include <fmt/format.h>
 
 #include "Common/CommonTypes.h"
+#include "Common/CommonPaths.h"
 #include "Common/Config/Config.h"
 #include "Common/FileUtil.h"
 #include "Common/IOFile.h"
@@ -185,11 +186,6 @@ void Init(void)
   s_GCAM_key_b = 0;
   s_GCAM_key_c = 0;
 
-  if (File::Exists(File::GetUserPath(D_TRIUSER_IDX)) == false)
-  {
-    File::CreateFullPath(File::GetUserPath(D_TRIUSER_IDX));
-  }
-
   std::string netcfg_Filename(File::GetUserPath(D_TRIUSER_IDX) + "trinetcfg.bin");
   if (File::Exists(netcfg_Filename))
   {
@@ -245,9 +241,9 @@ void Init(void)
   {
     s_backup = new File::IOFile(backup_Filename, "wb+");
   }
-
-  // This is the s_firmware for the Triforce
-  std::string sega_boot_Filename(File::GetUserPath(D_TRIUSER_IDX) + "segaboot.gcm");
+  
+  // This is the firmware for the Triforce
+  std::string sega_boot_Filename(File::GetSysDirectory() + TRI_SYS_DIR + DIR_SEP + "segaboot.gcm");
   if (File::Exists(sega_boot_Filename))
   {
     File::IOFile* sega_boot = new File::IOFile(sega_boot_Filename, "rb+");
@@ -487,7 +483,7 @@ u32 ExecuteCommand(std::array<u32, 3>& DICMDBUF, u32 address, u32 length)
     // Set by OSResetSystem
     if (memory.Read_U32(0x811FFF00) == 1)
     {
-      // Don't map s_firmware while in SegaBoot
+      // Don't map firmware while in SegaBoot
       if (memory.Read_U32(0x8006BF70) != 0x0A536567)
       {
         s_firmwaremap = 1;

@@ -849,6 +849,8 @@ static void RebuildUserDirectories(unsigned int dir_index)
   case D_USER_IDX:
     s_user_paths[D_GCUSER_IDX] = s_user_paths[D_USER_IDX] + GC_USER_DIR DIR_SEP;
     s_user_paths[D_WIIROOT_IDX] = s_user_paths[D_USER_IDX] + WII_USER_DIR DIR_SEP;
+    s_user_paths[D_TRIUSER_IDX] = s_user_paths[D_USER_IDX] + TRI_USER_DIR DIR_SEP;
+    s_user_paths[D_RVAUSER_IDX] = s_user_paths[D_USER_IDX] + RVA_USER_DIR DIR_SEP;
     s_user_paths[D_CONFIG_IDX] = s_user_paths[D_USER_IDX] + CONFIG_DIR DIR_SEP;
     s_user_paths[D_GAMESETTINGS_IDX] = s_user_paths[D_USER_IDX] + GAMESETTINGS_DIR DIR_SEP;
     s_user_paths[D_MAPS_IDX] = s_user_paths[D_USER_IDX] + MAPS_DIR DIR_SEP;
@@ -917,10 +919,6 @@ static void RebuildUserDirectories(unsigned int dir_index)
     s_user_paths[F_GBABIOS_IDX] = s_user_paths[D_GBAUSER_IDX] + GBA_BIOS;
 
     s_user_paths[D_ASM_ROOT_IDX] = s_user_paths[D_USER_IDX] + ASSEMBLY_DIR DIR_SEP;
-
-    s_user_paths[D_TRIUSER_IDX] = s_user_paths[D_USER_IDX] + TRI_SYS_DIR DIR_SEP;
-
-    s_user_paths[D_RVAUSER_IDX] = s_user_paths[D_USER_IDX] + RVA_SYS_DIR DIR_SEP;
 
     // The shader cache has moved to the cache directory, so remove the old one.
     // TODO: remove that someday.

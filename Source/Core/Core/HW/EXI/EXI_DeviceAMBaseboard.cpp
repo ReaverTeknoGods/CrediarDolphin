@@ -168,9 +168,9 @@ void CEXIAMBaseboard::DMAWrite(u32 addr, u32 size)
 
   m_backup->Seek(m_backoffset, File::SeekOrigin::Begin);
 
-  m_backup->Flush();
+  m_backup->WriteBytes(memory.GetPointer(addr), size);
 
-  m_backup->WriteBytes(memory.GetPointer(addr), size); 
+  m_backup->Flush();
 }
 
 void CEXIAMBaseboard::DMARead(u32 addr, u32 size)
