@@ -590,6 +590,7 @@ void IOSC::LoadDefaultEntries()
     m_ca_id = 1;
     break;
   case ConsoleType::RVT:
+  case ConsoleType::RVA:
     m_key_entries[HANDLE_COMMON_KEY] = {TYPE_SECRET_KEY,
                                         ObjectSubType::AES128,
                                         {{0xa1, 0x60, 0x4a, 0x6a, 0x71, 0x23, 0xb5, 0x29, 0xae,

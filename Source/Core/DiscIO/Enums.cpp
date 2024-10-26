@@ -398,6 +398,7 @@ std::string GetSysMenuVersionString(u16 title_version, bool is_vwii)
   case Region::NTSC_J:
     region_letter = 'J';
     break;
+  case Region::RGB:
   case Region::NTSC_U:
     region_letter = 'U';
     break;

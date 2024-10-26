@@ -63,7 +63,7 @@
 
 typedef int SOCKET;
 
-int WSAGetLastError(void)
+static int WSAGetLastError(void)
 {
   switch (errno)
   {
@@ -109,7 +109,7 @@ static u8 s_network_buffer[128 * 1024];
 
 static SOCKET s_sockets[64];
 
-SOCKET socket_(int af, int type, int protocol)
+static SOCKET socket_(int af, int type, int protocol)
 {
   for (u32 i = 1; i < 64; ++i)
   {
@@ -124,7 +124,7 @@ SOCKET socket_(int af, int type, int protocol)
   return SOCKET_ERROR;
 }
 
-SOCKET accept_(int fd, struct sockaddr* addr, int* len)
+static SOCKET accept_(int fd, struct sockaddr* addr, int* len)
 {
   for (u32 i = 1; i < 64; ++i)
   {
@@ -274,7 +274,7 @@ u8* InitDIMM(void)
   return s_dimm_disc;
 }
 
-s32 NetDIMMAccept(int fd, struct sockaddr* addr, int* len)
+static s32 NetDIMMAccept(int fd, struct sockaddr* addr, int* len)
 {
   int ret = 0;
   int err = 0;
@@ -282,7 +282,7 @@ s32 NetDIMMAccept(int fd, struct sockaddr* addr, int* len)
   u_long val = 1;
   ioctlsocket(fd, FIONBIO, &val);
 
-  ret = accept_(fd, addr, (socklen_t*)len);
+  ret = accept_(fd, addr, len);
   err = WSAGetLastError();
 
   val = 0;
@@ -333,7 +333,7 @@ s32 NetDIMMAccept(int fd, struct sockaddr* addr, int* len)
   return ret;
 }
 
-s32 NetDIMMConnect(int fd, struct sockaddr_in* addr, int len)
+static s32 NetDIMMConnect(int fd, struct sockaddr_in* addr, int len)
 {
   // CyCraft Connect IP, change to localhost
   if (addr->sin_addr.s_addr == inet_addr("192.168.11.111"))

@@ -115,29 +115,6 @@ install(
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}"
 )
 
-if(NOT BUNDLE_SPEEX)
-  find_package(PkgConfig)
-  if(PKG_CONFIG_FOUND)
-    pkg_check_modules(speexdsp IMPORTED_TARGET speexdsp)
-    if(speexdsp_FOUND)
-      add_library(speex ALIAS PkgConfig::speexdsp)
-    endif()
-  endif()
-endif()
-
-if(NOT TARGET speex)
-  add_library(speex OBJECT cubeb/subprojects/speex/resample.c)
-  dolphin_disable_warnings(speex)
-  set_target_properties(speex PROPERTIES POSITION_INDEPENDENT_CODE TRUE)
-  target_include_directories(speex INTERFACE cubeb/subprojects)
-  target_compile_definitions(speex PUBLIC
-    OUTSIDE_SPEEX
-    FLOATING_POINT
-    EXPORT=
-    RANDOM_PREFIX=speex
-  )
-endif()
-
 # $<BUILD_INTERFACE:> required because of https://gitlab.kitware.com/cmake/cmake/-/issues/15415
 target_link_libraries(cubeb PRIVATE $<BUILD_INTERFACE:speex>)
 

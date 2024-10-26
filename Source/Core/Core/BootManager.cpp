@@ -119,6 +119,7 @@ bool BootCore(Core::System& system, std::unique_ptr<BootParameters> boot,
         case DiscIO::Region::NTSC_J:
           Config::SetCurrent(Config::SYSCONF_COUNTRY, 0x01);  // Japan
           break;
+        case DiscIO::Region::RGB:
         case DiscIO::Region::NTSC_U:
           Config::SetCurrent(Config::SYSCONF_COUNTRY, 0x31);  // United States
           break;
