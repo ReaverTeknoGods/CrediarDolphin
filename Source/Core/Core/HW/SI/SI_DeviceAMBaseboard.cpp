@@ -344,9 +344,9 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                          "GC-AM: Command 1f, {:02x} {:02x} {:02x} {:02x} {:02x} (REGION)", ptr(1),
                          ptr(2), ptr(3), ptr(4), ptr(5));
           u8 string[] = "\x00\x00\x30\x00"
-                        //    "\x01\xfe\x00\x00"  // JAPAN
-                        // "\x02\xfd\x00\x00" // USA
-                        "\x03\xfc\x00\x00"  // export
+                        //   "\x01\xfe\x00\x00"  // JAPAN
+                         "\x02\xfd\x00\x00" // USA
+                        // "\x03\xfc\x00\x00"  // export
                         "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff";
           res[resp++] = 0x1f;
           res[resp++] = 0x14;

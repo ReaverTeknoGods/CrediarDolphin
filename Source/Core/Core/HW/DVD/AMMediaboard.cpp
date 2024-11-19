@@ -1632,11 +1632,20 @@ u32 GetGameType(void)
 
 void Shutdown(void)
 {
-  s_netcfg->Close();
-  s_netctrl->Close();
-  s_extra->Close();
-  s_backup->Close();
-  s_dimm->Close();
+  if(s_netcfg)
+    s_netcfg->Close();
+
+  if (s_netctrl)
+    s_netctrl->Close();
+
+  if (s_extra)
+    s_extra->Close();
+
+  if (s_backup)
+    s_backup->Close();
+
+  if (s_dimm)
+    s_dimm->Close();
 
   if (s_dimm_disc)
   {

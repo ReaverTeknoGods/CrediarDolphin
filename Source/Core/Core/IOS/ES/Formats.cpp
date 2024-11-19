@@ -482,7 +482,18 @@ std::array<u8, 16> TicketReader::GetTitleKey() const
 HLE::IOSC::ConsoleType TicketReader::GetConsoleType() const
 {
   const bool is_rvt = GetIssuer() == "Root-CA00000002-XS00000006";
-  return is_rvt ? HLE::IOSC::ConsoleType::RVT : HLE::IOSC::ConsoleType::Retail;
+  if (is_rvt)
+  {
+    return HLE::IOSC::ConsoleType::RVT;
+  }
+
+  const bool is_rva = GetIssuer() == "Root-CA10000000-XS10000000";
+  if (is_rva)
+  {
+    return HLE::IOSC::ConsoleType::RVA;
+  }
+
+  return HLE::IOSC::ConsoleType::Retail;
 }
 
 void TicketReader::DeleteTicket(u64 ticket_id_to_delete)

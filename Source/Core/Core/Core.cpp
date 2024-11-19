@@ -314,7 +314,12 @@ void Stop(Core::System& system)  // - Hammertime!
     g_video_backend->Video_ExitLoop();
   }
 
-  AMMediaboard::Shutdown();
+  const ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SERIAL_PORT_1);
+ 
+  if ((Type == ExpansionInterface::EXIDeviceType::AMMediaboard))
+  {
+    AMMediaboard::Shutdown();
+  }
 
   s_last_actual_emulation_speed = 1.0;
 }

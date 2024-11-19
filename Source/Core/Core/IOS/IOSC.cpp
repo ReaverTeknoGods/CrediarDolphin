@@ -24,6 +24,9 @@
 #include "Common/IOFile.h"
 #include "Common/ScopeGuard.h"
 #include "Common/Swap.h"
+#include "Core/HW/EXI/EXI.h"
+#include "Core/HW/EXI/EXI_Device.h"
+#include "Core/Config/MainSettings.h"
 #include "Core/IOS/Device.h"
 #include "Core/IOS/ES/Formats.h"
 
@@ -207,6 +210,14 @@ static size_t GetSizeForType(IOSC::ObjectType type, IOSC::ObjectSubType subtype)
 
 IOSC::IOSC(ConsoleType console_type) : m_console_type(console_type)
 {
+  // Check for RVA to then use debug keys
+  const ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SLOT_A);
+
+  if ((Type == ExpansionInterface::EXIDeviceType::RVA))
+  {
+    m_console_type = ConsoleType::RVA;
+  }
+
   LoadDefaultEntries();
   LoadEntries();
 }
