@@ -301,27 +301,6 @@ static const u8 BoardStatusReply[] = {2, '0', 'C', 'S', 'T', '8', '0', '0', '0',
 
 static const u8 UpdateInfoReply[] = {2, '0', 'A', 'U', 'P', '0', '0', '7', 'B', 3};
 
-u8 MIReply[9] = {
-    0x02, 0x30, 0x39, 0x4D, 0x49, 0x30, 0x33, 0x34, 0x03,
-};
-
-u8 MOReply[9] = {
-    0x02, 0x30, 0x39, 0x4D, 0x4F, 0x30, 0x33, 0x41, 0x03,
-};
-
-u8 PMReply[19] = {
-    0x02, 0x31, 0x33, 0x50, 0x4D, 0x30, 0x30, 0x30, 0x30, 0x30,
-    0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x31, 0x36, 0x03,
-};
-
-u8 BIReply[9] = {
-    0x02, 0x30, 0x39, 0x42, 0x49, 0x30, 0x32, 0x39, 0x03,
-};
-
-u8 BOReply[9] = {
-    0x02, 0x30, 0x39, 0x42, 0x4F, 0x30, 0x32, 0x46, 0x03,
-};
-
 u8 ConfigReply[] = {
     2, '1', '2', 'C', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'A', 'D', 3,
 };
@@ -350,22 +329,22 @@ static const u8 SI0_reply_6[] = {"\x02\x01\x00\x06TEST12\xAC"};
 
 // TMD hashes to detect versious versions
 
-static const u8 MarioPartyFKC2Server_1302141211[20] = {
+static const u8 Mario_Party_FKC_2_Server_1302141211[20] = {
     0x9F, 0x67, 0x2B, 0x38, 0x60, 0x30, 0xB4, 0x9F, 0x17, 0x53,
     0x80, 0xE2, 0x42, 0x42, 0xEC, 0x5E, 0x3F, 0x2F, 0x5E, 0xE6,
 };
 
-static const u8 MarioPartyFKC2Client_1301080914[20] = {
+static const u8 Mario_Party_FKC_2_Client_1301080914[20] = {
     0x9F, 0x67, 0x2B, 0x38, 0x60, 0x30, 0xB4, 0x9F, 0x17, 0x53,
     0x80, 0xE2, 0x42, 0x42, 0xEC, 0x5E, 0x3F, 0x2F, 0x5E, 0xE6,
 };
 
-static const u8 MarioPartyFKC2Client_1302141156[20] = {
+static const u8 Mario_Party_FKC_2_Client_1302141156[20] = {
     0x9F, 0x67, 0x2B, 0x38, 0x60, 0x30, 0xB4, 0x9F, 0x17, 0x53,
     0x80, 0xE2, 0x42, 0x42, 0xEC, 0x5E, 0x3F, 0x2F, 0x5E, 0xE6,
 };
 
-static const u8 TatsunokoVSCapcom_0811051625[20] = {
+static const u8 Tatsunoko_VS_Capcom_0811051625[20] = {
     0x90, 0x2D, 0xDE, 0x93, 0xAB, 0xBF, 0x20, 0xD2, 0xB9, 0x6A,
     0x2D, 0xAB, 0xC3, 0x9E, 0x06, 0x74, 0xB7, 0x1C, 0x60, 0x30,
 };
@@ -378,7 +357,7 @@ u32 g_exi_write_mode;
 u32 g_exi_write_size;
 u32 g_exi_write_count;
 
-u32 g_game_type = Unknown;
+GameType g_game_type;
 
 static void InterruptSet(RVAIRQMasks Interrupt)
 {
@@ -946,11 +925,11 @@ void CEXISI::Write(RVAMemoryMap address, u32 value)
         switch (g_game_type)
         {
         default:
-        case MarioPartyFKC2Server:
+        case GameType::MarioPartyFKC2Server:
           m_rx_type = SerialReplies::AMOVersionServer;
           m_rx_cnt = sizeof(AMO_reply_version);
           break;
-        case MarioPartyFKC2Client:
+        case GameType::MarioPartyFKC2Client:
           m_rx_type = SerialReplies::AMOVersionClient;
           m_rx_cnt = sizeof(AMO_reply_client_version);
           break;
@@ -1207,19 +1186,19 @@ u32 CEXIJVS::Read(RVAMemoryMap address, u32 size)
     break;
   case RVAMemoryMap::JVS_IO_CSR:
     data = m_csr | 0x40;
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: CSR(R): {:02x}", data);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: CSR(R): {:02x}", data);
     break;
   case RVAMemoryMap::JVS_IO_TXD:
     data = 0;
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: TXD(R): {:02x}", data);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: TXD(R): {:02x}", data);
     break;
   case RVAMemoryMap::JVS_IO_DCSR:
     data = m_dscr;
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: DCSR(R): {:02x}", data);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: DCSR(R): {:02x}", data);
     break;
   case RVAMemoryMap::JVS_IO_RX_CNT:
     data = m_rx_cnt;
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: RX_CNT(R): {:02x}", data);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: RX_CNT(R): {:02x}", data);
     break;
   case RVAMemoryMap::JVS_IO_RXD:
   {
@@ -1227,11 +1206,11 @@ u32 CEXIJVS::Read(RVAMemoryMap address, u32 size)
     if (m_rx_cnt > 0)
       m_rx_cnt--;
 
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: RX_RXD(R): {:02x}", data);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: RX_RXD(R): {:02x}", data);
   }
   break;
   default:
-    ERROR_LOG_FMT(EXPANSIONINTERFACE, "JVS: Unhandled address read: {:08x}", (u32)address);
+    ERROR_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: Unhandled address read: {:08x}", (u32)address);
     return 0;
   }
 
@@ -1253,13 +1232,13 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
     g_exi_write_mode = 0;
     break;
   case RVAMemoryMap::JVS_IO_CSR:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: CSR(W): {:02x}", value_swap);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: CSR(W): {:02x}", value_swap);
     m_csr = value_swap & 0x3F;
     g_exi_write_mode = 0;
     break;
   case RVAMemoryMap::JVS_IO_TXD:
   {
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: TX_TXD(W): {:02x}", value_swap);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: TX_TXD(W): {:02x}", value_swap);
 
     m_tx_data = value_swap;
     m_jvs_data[m_jvs_offset++] = value_swap;
@@ -1279,32 +1258,34 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
         u8* jvs_io = m_jvs_data + 3;
         m_jvs_offset--;  // checksum
 
+        GCPadStatus pad_status;
+
         while (jvs_io < (m_jvs_data + m_jvs_offset))
         {
           int cmd = *jvs_io++;
-          DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO:node={}, command={:02x}", node, cmd);
+          DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO:node={}, command={:02x}", node, cmd);
           switch (JVSIOCommands(cmd))
           {
           case JVSIOCommands::IOID:
             msg.addData(1);
             msg.addData("NO BRAND;NAOMI CONVERTER98701;VER2.0;");
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO:  Command 10, BoardID");
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Command 10, IOID");
             msg.addData((u32)0);
             break;
           case JVSIOCommands::CommandRevision:
             msg.addData(1);
             msg.addData(0x11);
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO:  Command 11, CMDFormatRevision");
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Command 11, CommandRevision");
             break;
-          case JVSIOCommands::JVRevision:
+          case JVSIOCommands::JVSRevision:
             msg.addData(1);
             msg.addData(0x20);
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO:  Command 12, Revision");
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Command 12, JVSRevision");
             break;
           case JVSIOCommands::CommunicationVersion:
             msg.addData(1);
             msg.addData(0x10);
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO:  Command 13, COMVersion");
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Command 13, CommunicationVersion");
             break;
           case JVSIOCommands::CheckFunctionality:
             msg.addData(1);
@@ -1313,25 +1294,26 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
             msg.addData((void*)"\x02\x02\x00\x00", 4);
             msg.addData((void*)"\x03\x08\x00\x00", 4);
             msg.addData((void*)"\x00\x00\x00\x00", 4);
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO:  Command 14, SlaveFeatures");
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Command 14, CheckFunctionality");
             break;
           case JVSIOCommands::SwitchesInput:
           {
             int player_count = *jvs_io++;
             int player_byte_count = *jvs_io++;
 
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO:  Command 20, SwitchInputs: {} {}",
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Command 20, SwitchesInput: Players:{} Bytes:{}",
                          player_count, player_byte_count);
 
             InterruptSet(RVA_IRQ_JVS_RS_RX);
 
             msg.addData(1);
 
-            GCPadStatus PadStatus;
-            PadStatus = Pad::GetStatus(0);
+            pad_status = Pad::GetStatus(0);
+
+            static u8 stick_deadzone = 34;
 
             // Test button
-            if (PadStatus.substickX > PadStatus.C_STICK_CENTER_X)
+            if (pad_status.substickX > pad_status.C_STICK_CENTER_X)
               msg.addData(0x80);
             else
               msg.addData((u32)0x00);
@@ -1340,42 +1322,46 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
             {
               u8 player_data[3] = {0, 0, 0};
 
-              PadStatus = Pad::GetStatus(i);
+              pad_status = Pad::GetStatus(i);
               // Start
-              if (PadStatus.button & PAD_BUTTON_START)
+              if (pad_status.button & PAD_BUTTON_START)
                 player_data[0] |= 0x80;
               // Service button
-              if (PadStatus.substickY > PadStatus.C_STICK_CENTER_Y)
+              if (pad_status.substickY > pad_status.C_STICK_CENTER_Y)
                 player_data[0] |= 0x40;
               // Shot 1
-              if (PadStatus.button & PAD_BUTTON_A)
+              if (pad_status.button & PAD_BUTTON_A)
                 player_data[0] |= 0x02;
               // Shot 2
-              if (PadStatus.button & PAD_BUTTON_B)
+              if (pad_status.button & PAD_BUTTON_B)
                 player_data[0] |= 0x01;
               // Shot 3
-              if (PadStatus.button & PAD_BUTTON_X)
+              if (pad_status.button & PAD_BUTTON_X)
                 player_data[1] |= 0x80;
               // Shot 4
-              if (PadStatus.button & PAD_BUTTON_Y)
+              if (pad_status.button & PAD_BUTTON_Y)
                 player_data[1] |= 0x40;
               // Shot 5
-              if (PadStatus.button & PAD_TRIGGER_L)
+              if (pad_status.button & PAD_TRIGGER_L)
                 player_data[1] |= 0x20;
               // Shot 6
-              if (PadStatus.button & PAD_TRIGGER_R)
+              if (pad_status.button & PAD_TRIGGER_R)
                 player_data[1] |= 0x10;
               // Left
-              if (PadStatus.stickX < (PadStatus.MAIN_STICK_CENTER_X - 34))
+              if ((pad_status.stickX < (pad_status.MAIN_STICK_CENTER_X - stick_deadzone)) ||
+                  (pad_status.button & PAD_BUTTON_LEFT))
                 player_data[0] |= 0x08;
               // Up
-              if (PadStatus.stickY > (PadStatus.MAIN_STICK_CENTER_Y + 34))
+              if ((pad_status.stickY > (pad_status.MAIN_STICK_CENTER_Y + stick_deadzone)) ||
+                  (pad_status.button & PAD_BUTTON_UP))
                 player_data[0] |= 0x20;
               // Right
-              if (PadStatus.stickX > (PadStatus.MAIN_STICK_CENTER_X + 34))
+              if ((pad_status.stickX > (pad_status.MAIN_STICK_CENTER_X + stick_deadzone)) ||
+                  (pad_status.button & PAD_BUTTON_RIGHT))
                 player_data[0] |= 0x04;
               // Down
-              if (PadStatus.stickY < (PadStatus.MAIN_STICK_CENTER_Y - 34))
+              if ((pad_status.stickY < (pad_status.MAIN_STICK_CENTER_Y - stick_deadzone)) ||
+                  (pad_status.button & PAD_BUTTON_DOWN))
                 player_data[0] |= 0x10;
 
               for (int j = 0; j < player_byte_count; ++j)
@@ -1389,17 +1375,16 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
             msg.addData(1);
             for (int i = 0; i < slots; i++)
             {
-              GCPadStatus PadStatus;
-              PadStatus = Pad::GetStatus(i);
-              if ((PadStatus.button & PAD_TRIGGER_Z) && !m_coin_pressed[i])
+              pad_status = Pad::GetStatus(i);
+              if ((pad_status.button & PAD_TRIGGER_L) && !m_coin_pressed[i])
               {
                 m_coin[i]++;
               }
-              m_coin_pressed[i] = PadStatus.button & PAD_TRIGGER_Z;
+              m_coin_pressed[i] = pad_status.button & PAD_TRIGGER_L;
               msg.addData((m_coin[i] >> 8) & 0x3f);
               msg.addData(m_coin[i] & 0xff);
             }
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO: Command 21, Get Coins Slots:{}", slots);
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Command 21, CoinInput Slots:{}", slots);
             break;
           }
           case JVSIOCommands::CoinSubOutput:
@@ -1412,7 +1397,7 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
           case JVSIOCommands::Reset:
             if (*jvs_io++ == 0xD9)
             {
-              INFO_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO: RESET");
+              INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Reset");
               m_dscr |= 0x80;
             }
             msg.addData(1);
@@ -1420,12 +1405,12 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
             break;
           case JVSIOCommands::SetAddress:
             node = *jvs_io++;
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO: SET ADDRESS, node={}", node);
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: SetAddress, node={}", node);
             msg.addData(node == 1);
             m_dscr &= ~0x80;
             break;
           default:
-            ERROR_LOG_FMT(EXPANSIONINTERFACE, "JVS-IO: node={}, command={:02x}", node, cmd);
+            ERROR_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: node={}, command={:02x}", node, cmd);
             break;
           }
         }
@@ -1447,23 +1432,23 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
   }
   break;
   case RVAMemoryMap::JVS_IO_TX_LEN:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: TX_LEN(W): {:02x}", value_swap);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: TX_LEN(W): {:02x}", value_swap);
     m_tx_len = value_swap;
     g_exi_write_mode = 0;
     break;
   case RVAMemoryMap::JVS_IO_RX_LEN:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: RX_LEN(W): {:02x}", value_swap);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: RX_LEN(W): {:02x}", value_swap);
     m_rx_len = value_swap;
     g_exi_write_mode = 0;
     break;
   case RVAMemoryMap::JVS_IO_DCSR:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "JVS: DCSR(W): {:02x}", value_swap);
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: DCSR(W): {:02x}", value_swap);
     m_dscr = value_swap;
     g_exi_write_mode = 0;
     break;
   default:
-    ERROR_LOG_FMT(EXPANSIONINTERFACE, "JVS: Unhandled address write: {:08x} {:02x}", (u32)address,
-                  value);
+    ERROR_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: Unhandled address write: {:08x} {:02x}",
+                  (u32)address, value);
     break;
   }
 }
@@ -1474,69 +1459,38 @@ CEXIJVS::~CEXIJVS()
 
 CEXIRVA::CEXIRVA(Core::System& system) : IEXIDevice(system), m_jvs(), m_si0(), m_si1()
 {
-  auto& memory = system.GetMemory();
-
-  g_exi_write_mode = 0;
   m_watch_dog_timer = 0;
-  m_backup_offset = 0;
+  m_SRAM_offset = 0;
   g_have_irq = false;
   g_irq_delay = 0;
   g_irq_type = 0;
-
-  // Do a few sanity checks
-
-  memory.Init();
-
-  if (memory.GetRamSize() != Memory::MEM1_SIZE_GDEV)
-  {
-    CriticalAlertFmt("Please set MEM1 size to 50MB!");
-    return;
-  }
-
-  if (memory.GetExRamSize() != Memory::MEM2_SIZE_NDEV)
-  {
-    CriticalAlertFmt("Please set MEM2 size to 128MB!");
-    return;
-  }
-
-  ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SLOT_A);
-  if (Type != ExpansionInterface::EXIDeviceType::RVA)
-  {
-    CriticalAlertFmt("Please set both memcard slots\nto: Wii Arcadeboard");
-    return;
-  }
-
-  Type = Config::Get(Config::MAIN_SLOT_B);
-  if (Type != ExpansionInterface::EXIDeviceType::RVA)
-  {
-    CriticalAlertFmt("Please set both memcard slots\nto: Wii Arcadeboard");
-    return;
-  }
+  g_exi_write_mode = 0;
+  g_game_type = GameType::Unknown;
 
   /*
     Mario Party F.K.C 2's server and client have the same title ID.
-    They expect different version replies and the backup size is different.
+    They expect different version replies and the SRAM size is different.
   */
 
   IOS::HLE::Kernel ios;
   const IOS::ES::TMDReader tmd_mp8 = ios.GetESCore().FindInstalledTMD(0x00015000344D504ALL);
   if (tmd_mp8.IsValid())
   {
-    if (memcmp(tmd_mp8.GetSha1().data(), MarioPartyFKC2Server_1302141211, 16) == 0)
+    if (memcmp(tmd_mp8.GetSha1().data(), Mario_Party_FKC_2_Server_1302141211, 16) == 0)
     {
-      g_game_type = MarioPartyFKC2Server;
+      g_game_type = GameType::MarioPartyFKC2Server;
     }
-    else if (memcmp(tmd_mp8.GetSha1().data(), MarioPartyFKC2Client_1301080914, 16) == 0)
+    else if (memcmp(tmd_mp8.GetSha1().data(), Mario_Party_FKC_2_Client_1301080914, 16) == 0)
     {
-      g_game_type = MarioPartyFKC2Client;
+      g_game_type = GameType::MarioPartyFKC2Client;
     }
-    else if (memcmp(tmd_mp8.GetSha1().data(), MarioPartyFKC2Client_1302141156, 16) == 0)
+    else if (memcmp(tmd_mp8.GetSha1().data(), Mario_Party_FKC_2_Client_1302141156, 16) == 0)
     {
-      g_game_type = MarioPartyFKC2Client;
+      g_game_type = GameType::MarioPartyFKC2Client;
     }
     else  // Fall back to client for unkown MP8 versions
     {
-      g_game_type = MarioPartyFKC2Client;
+      g_game_type = GameType::MarioPartyFKC2Client;
     }
   }
   else
@@ -1545,37 +1499,39 @@ CEXIRVA::CEXIRVA(Core::System& system) : IEXIDevice(system), m_jvs(), m_si0(), m
     const IOS::ES::TMDReader tmd_tvsc = ios.GetESCore().FindInstalledTMD(0x0001500052564130LL);
     if (tmd_tvsc.IsValid())
     {
-      if (memcmp(tmd_tvsc.GetSha1().data(), TatsunokoVSCapcom_0811051625, 16) == 0)
+      if (memcmp(tmd_tvsc.GetSha1().data(), Tatsunoko_VS_Capcom_0811051625, 16) == 0)
       {
-        g_game_type = TatsunokoVSCapcom;
+        g_game_type = GameType::TatsunokoVSCapcom;
       }
     }
   }
 
-  if (g_game_type == Unknown)
+  if (g_game_type == GameType::Unknown)
   {
     PanicAlertFmt("Failed to detected game!");
   }
 
-  std::string backup_filename(File::GetUserPath(D_RVAUSER_IDX) + "backup_");
+  // RVA has an extra dedicated SRAM which can be accessed through the EXI interface.
+
+  std::string SRAM_filename(File::GetUserPath(D_RVAUSER_IDX) + "SRAM_");
 
   switch (g_game_type)
   {
   default:
-  case MarioPartyFKC2Server:
-    m_backup_size = 0x1400;
-    m_backup_check_off = 0x13F8;
-    backup_filename += "MarioPartyFKC2Server.bin";
+  case GameType::MarioPartyFKC2Server:
+    m_SRAM_size = 0x1400;
+    m_SRAM_check_off = 0x13F8;
+    SRAM_filename += "MarioPartyFKC2Server.bin";
     break;
-  case MarioPartyFKC2Client:
-    m_backup_size = 0x1A40;
-    m_backup_check_off = 0x1A28;
-    backup_filename += "MarioPartyFKC2Client.bin";
+  case GameType::MarioPartyFKC2Client:
+    m_SRAM_size = 0x1A40;
+    m_SRAM_check_off = 0x1A28;
+    SRAM_filename += "MarioPartyFKC2Client.bin";
     break;
-  case TatsunokoVSCapcom:
-    m_backup_size = 0x1A40;
-    m_backup_check_off = 0x1A28;
-    backup_filename += "TatsunokoVSCapcom.bin";
+  case GameType::TatsunokoVSCapcom:
+    m_SRAM_size = 0x8000;
+    m_SRAM_check_off = 0;
+    SRAM_filename += "TatsunokoVSCapcom.bin";
     break;
   }
 
@@ -1584,51 +1540,57 @@ CEXIRVA::CEXIRVA(Core::System& system) : IEXIDevice(system), m_jvs(), m_si0(), m
     File::CreateFullPath(File::GetUserPath(D_RVAUSER_IDX));
   }
 
-  if (File::IsFile(backup_filename))
+  if (File::IsFile(SRAM_filename))
   {
-    m_backup = new File::IOFile(backup_filename, "rb+");
+    m_SRAM = new File::IOFile(SRAM_filename, "rb+");
   }
   else
   {
-    m_backup = new File::IOFile(backup_filename, "wb+");
+    m_SRAM = new File::IOFile(SRAM_filename, "wb+");
   }
 
   // The RVA device will be opened twice
-  if (!m_backup->IsGood())
+  if (!m_SRAM->IsGood())
   {
-    // PanicAlertFmt("Failed to open rvabackup\nFile might be in use.");
+    // PanicAlertFmt("Failed to open SRAM\nFile might be in use.");
     return;
   }
 
-  // Setup new backup file
-  if (m_backup->GetSize() == 0)
+  // Game doesn't need a file prepared
+  if (g_game_type == GameType::TatsunokoVSCapcom)
   {
-    u8* data = new u8[m_backup_size];
+    return;
+  }
 
-    memset(data, 0, m_backup_size);
+  // Setup new file
+  if (m_SRAM->GetSize() == 0)
+  {
+    u8* data = new u8[m_SRAM_size];
+
+    memset(data, 0, m_SRAM_size);
 
     strcpy((char*)data, "IDX");
 
     for (u32 i = 1; i < 5; ++i)
     {
       *(u64*)(data + 8) = i;
-      *(u32*)(data + m_backup_check_off) =
-          Common::swap32(Common::ComputeCRC32(data + 0x10, m_backup_check_off - 0x10));
-      m_backup->WriteBytes(data, m_backup_size);
+      *(u32*)(data + m_SRAM_check_off) =
+          Common::swap32(Common::ComputeCRC32(data + 0x10, m_SRAM_check_off - 0x10));
+      m_SRAM->WriteBytes(data, m_SRAM_size);
     }
 
     delete[] data;
 
-    m_backup->Flush();
+    m_SRAM->Flush();
   }
 }
 
 CEXIRVA::~CEXIRVA()
 {
-  if (!m_backup)
+  if (!m_SRAM)
   {
-    m_backup->Close();
-    delete m_backup;
+    m_SRAM->Close();
+    delete m_SRAM;
   }
 }
 
@@ -1646,10 +1608,10 @@ void CEXIRVA::ImmWrite(u32 data, u32 size)
 
   DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: ImmWrite: {:08x} {}", data, size);
 
-  if (RVAMemoryMap(data & 0x7F000000) == RVAMemoryMap::BACKUP_SET_OFFSET)
+  if (RVAMemoryMap(data & 0x7F000000) == RVAMemoryMap::SRAM_SET_OFFSET)
   {
-    m_backup_offset = (data >> 6) & 0xFFFF;
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: Backup Set Offset: {:08x}", m_backup_offset);
+    m_SRAM_offset = (data >> 6) & 0xFFFF;
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: SRAM Set Offset: {:08x}", m_SRAM_offset);
     return;
   }
 
@@ -1676,7 +1638,7 @@ void CEXIRVA::ImmWrite(u32 data, u32 size)
   {
     INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: Get ID");
 
-    // HACK: MP FKC Client: Patch out error 9906/8001
+    // HACK: MP FKC 2 Client: Patch out error 9906/8001
     if (memory.Read_U32(0x8010A9FC) == 0x480E27CD)
     {
       memory.Write_U32(0x60000000, 0x8010A9FC);
@@ -1779,42 +1741,54 @@ u32 CEXIRVA::ImmRead(u32 size)
     data = 0;
   }
 
-  // Watchdog
-  if (m_address == RVAMemoryMap::WATCH_DOG)
+  switch (m_address)
   {
+  case RVAMemoryMap::WATCH_DOG:
     data = Common::swap32(m_watch_dog_timer);
-  }
+    break;
 
-  // Switches
-  if (m_address == RVAMemoryMap::JVS_Switches)
-  {
-    data = m_jvs.Read(m_address, size);
-  }
-
-  // JVS(IO)
-  if (m_address >= RVAMemoryMap::JVS_IO_CSR && m_address <= RVAMemoryMap::JVS_IO_DCSR)
-  {
-    data = Common::swap32(m_jvs.Read(m_address, size));
-  }
-
-  // IRQ handler
-  if (m_address == RVAMemoryMap::JVS_IO_SI_0_1_CSR)
-  {
+  case RVAMemoryMap::JVS_IO_SI_0_1_CSR:
     data = (u32)g_irq_type;
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: IRQ Status:{:08x}", data);
     data = Common::swap32(data);
-  }
+    break;
 
-  // SI(0)
-  if (m_address >= RVAMemoryMap::SI_0_CSR && m_address <= RVAMemoryMap::SI_0_RX_RAT)
-  {
+  case RVAMemoryMap::JVS_Switches:
+    data = m_jvs.Read(m_address, size);
+    break;
+
+  case RVAMemoryMap::JVS_IO_CSR:
+  case RVAMemoryMap::JVS_IO_TXD:
+  case RVAMemoryMap::JVS_IO_RXD:
+  case RVAMemoryMap::JVS_IO_RX_CNT:
+  case RVAMemoryMap::JVS_IO_TX_LEN:
+  case RVAMemoryMap::JVS_IO_RX_LEN:
+  case RVAMemoryMap::JVS_IO_DCSR:
+    data = Common::swap32(m_jvs.Read(m_address, size));
+    break;
+
+  case RVAMemoryMap::SI_0_CSR:
+  case RVAMemoryMap::SI_0_TXD:
+  case RVAMemoryMap::SI_0_RXD:
+  case RVAMemoryMap::SI_0_RX_CNT:
+  case RVAMemoryMap::SI_0_TX_RAT:
+  case RVAMemoryMap::SI_0_RX_RAT:
     data = Common::swap32(m_si0.Read(m_address, size));
-  }
+    break;
 
-  // SI(1)
-  if (m_address >= RVAMemoryMap::SI_1_CSR && m_address <= RVAMemoryMap::SI_1_RX_RAT)
-  {
+  case RVAMemoryMap::SI_1_CSR:
+  case RVAMemoryMap::SI_1_TXD:
+  case RVAMemoryMap::SI_1_RXD:
+  case RVAMemoryMap::SI_1_RX_CNT:
+  case RVAMemoryMap::SI_1_TX_RAT:
+  case RVAMemoryMap::SI_1_RX_RAT:
     data = Common::swap32(m_si1.Read(m_address, size));
+    break;
+
+  default:
+    ERROR_LOG_FMT(EXPANSIONINTERFACE, "RVA: Unhandled Address: {:08x} ({:08x}) {}", data,
+                  (u32)m_address, size);
+    break;
   }
 
   DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: ImmRead {:08x} {:08x}  {}", (u32)m_address, data, size);
@@ -1827,16 +1801,16 @@ void CEXIRVA::DMAWrite(u32 address, u32 size)
   auto& system = Core::System::GetInstance();
   auto& memory = system.GetMemory();
 
-  DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: DMAWrite: {:08x} {:08x} {:x}", address, m_backup_offset,
+  DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: DMAWrite: {:08x} {:08x} {:x}", address, m_SRAM_offset,
                 size);
 
-  if (m_backup)
+  if (m_SRAM)
   {
-    m_backup->Seek(m_backup_offset, File::SeekOrigin::Begin);
+    m_SRAM->Seek(m_SRAM_offset, File::SeekOrigin::Begin);
 
-    m_backup->WriteBytes(memory.GetPointer(address), size);
+    m_SRAM->WriteBytes(memory.GetPointer(address), size);
 
-    m_backup->Flush();
+    m_SRAM->Flush();
   }
 }
 
@@ -1845,16 +1819,16 @@ void CEXIRVA::DMARead(u32 address, u32 size)
   auto& system = Core::System::GetInstance();
   auto& memory = system.GetMemory();
 
-  DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: DMARead: {:08x} {:08x} {:x}", address, m_backup_offset,
+  DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: DMARead: {:08x} {:08x} {:x}", address, m_SRAM_offset,
                 size);
 
-  if (m_backup)
+  if (m_SRAM)
   {
-    m_backup->Seek(m_backup_offset, File::SeekOrigin::Begin);
+    m_SRAM->Seek(m_SRAM_offset, File::SeekOrigin::Begin);
 
-    m_backup->Flush();
+    m_SRAM->Flush();
 
-    m_backup->ReadBytes(memory.GetPointer(address), size);
+    m_SRAM->ReadBytes(memory.GetPointer(address), size);
   }
 }
 

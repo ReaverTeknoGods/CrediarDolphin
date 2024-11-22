@@ -53,6 +53,7 @@
 #include "Core/HW/GBAPad.h"
 #include "Core/HW/GCKeyboard.h"
 #include "Core/HW/GCPad.h"
+#include "Core/HW/Memmap.h"
 #include "Core/HW/ProcessorInterface.h"
 #include "Core/HW/SI/SI_Device.h"
 #include "Core/HW/Wiimote.h"
@@ -1121,6 +1122,64 @@ void MainWindow::StartGame(std::unique_ptr<BootParameters>&& parameters)
     {
       if (!NKitWarningDialog::ShowUnlessDisabled())
         return;
+    }
+  }
+
+  // Don't allow booting with an invalid configuration
+  if (std::get<BootParameters::NANDTitle>(parameters->parameters).id == Titles::SYSTEM_MENU)
+  {
+    ExpansionInterface::EXIDeviceType Type = Config::Get(Config::MAIN_SERIAL_PORT_1);
+    if (Type != ExpansionInterface::EXIDeviceType::None)
+    {
+      ModalMessageBox::critical(this, tr("Error"),
+                                tr("You can't use the serial port 1 in Wii mode."), QMessageBox::Ok);
+      HideRenderWidget();
+      return;
+    }
+
+    // Check configuration matches for RVA
+
+    ExpansionInterface::EXIDeviceType device_slot_a = Config::Get(Config::MAIN_SLOT_A);
+    ExpansionInterface::EXIDeviceType device_slot_b = Config::Get(Config::MAIN_SLOT_B);
+    u32 main_mem1_size = Config::Get(Config::MAIN_MEM1_SIZE);
+    u32 main_mem2_size = Config::Get(Config::MAIN_MEM2_SIZE);
+
+    if (device_slot_a == ExpansionInterface::EXIDeviceType::RVA ||
+        device_slot_b == ExpansionInterface::EXIDeviceType::RVA)
+    {
+      if (main_mem1_size != Memory::MEM1_SIZE_GDEV)
+      {
+        ModalMessageBox::critical(this, tr("Error"), tr("Please set the MEM1 size to 64MB!"),
+                                  QMessageBox::Ok);
+        HideRenderWidget();
+        return;
+      }
+
+      if (main_mem2_size != Memory::MEM2_SIZE_NDEV)
+      {
+        ModalMessageBox::critical(this, tr("Error"), tr("Please set the MEM2 size to 128MB!"),
+                                  QMessageBox::Ok);
+        HideRenderWidget();
+        return;
+      }
+
+      if (device_slot_a != ExpansionInterface::EXIDeviceType::RVA)
+      {
+        ModalMessageBox::critical(this, tr("Error"),
+                                  tr("Please set both memcard slots\nto: Wii Arcadeboard"),
+                                  QMessageBox::Ok);
+        HideRenderWidget();
+        return;
+      }
+
+      if (device_slot_b != ExpansionInterface::EXIDeviceType::RVA)
+      {
+        ModalMessageBox::critical(this, tr("Error"),
+                                  tr("Please set both memcard slots\nto: Wii Arcadeboard"),
+                                  QMessageBox::Ok);
+        HideRenderWidget();
+        return;
+      }
     }
   }
 

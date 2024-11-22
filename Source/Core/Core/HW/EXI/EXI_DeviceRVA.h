@@ -32,7 +32,7 @@ enum class RVAMemoryMap : u32
 
   JVS_Switches = 0x00900000,  // 0x24000000
 
-  BACKUP_SET_OFFSET = 0x28000000,
+  SRAM_SET_OFFSET = 0x28000000,
 
   // JVS I/O
   JVS_IO_CSR = 0x00B00000,     // 0x2C000000
@@ -108,7 +108,7 @@ enum JVSIOCommands
 {
   IOID = 0x10,
   CommandRevision = 0x11,
-  JVRevision = 0x12,
+  JVSRevision = 0x12,
   CommunicationVersion = 0x13,
   CheckFunctionality = 0x14,
   MainID = 0x15,
@@ -206,7 +206,7 @@ enum class SerialReplies
   LR,  // no reply
 };
 
-enum GameType
+enum class GameType
 {
   Unknown,
   MarioPartyFKC2Server = 1,
@@ -308,10 +308,10 @@ private:
 
   u8 m_watch_dog_timer;
 
-  u16 m_backup_offset;
-  File::IOFile* m_backup;
-  u32 m_backup_size;
-  u32 m_backup_check_off;
+  u16 m_SRAM_offset;
+  File::IOFile* m_SRAM;
+  u32 m_SRAM_size;
+  u32 m_SRAM_check_off;
 
   CEXIJVS m_jvs;
   CEXISI m_si0;
