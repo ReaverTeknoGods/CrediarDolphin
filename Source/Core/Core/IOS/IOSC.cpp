@@ -24,9 +24,9 @@
 #include "Common/IOFile.h"
 #include "Common/ScopeGuard.h"
 #include "Common/Swap.h"
+#include "Core/Config/MainSettings.h"
 #include "Core/HW/EXI/EXI.h"
 #include "Core/HW/EXI/EXI_Device.h"
-#include "Core/Config/MainSettings.h"
 #include "Core/IOS/Device.h"
 #include "Core/IOS/ES/Formats.h"
 
@@ -415,7 +415,7 @@ ReturnCode IOSC::VerifyPublicKeySign(const std::array<u8, 20>& sha1, Handle sign
 
     int ret = mbedtls_rsa_pkcs1_verify(&rsa, nullptr, nullptr, MBEDTLS_RSA_PUBLIC, MBEDTLS_MD_SHA1,
                                        0, sha1.data(), signature.data());
-    if (ret != 0 && m_console_type == ConsoleType::RVT)
+    if (ret != 0 && (m_console_type == ConsoleType::RVT || m_console_type == ConsoleType::RVA))
     {
       // Some dev signatures do not have proper PKCS#1 padding. Just powmod and check it ends with
       // digest.

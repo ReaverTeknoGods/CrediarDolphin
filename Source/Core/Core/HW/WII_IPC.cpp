@@ -180,6 +180,14 @@ void WiiIPC::RegisterMMIO(MMIO::Mapping* mmio, u32 base)
                      system.GetDVDInterface().EjectDisc(Core::CPUThreadGuard{system},
                                                         DVD::EjectCause::Software);
                    }
+                   if (wii_ipc.m_gpio_out[GPIO::AVE_SCL])
+                   {
+                     INFO_LOG_FMT(WII_IPC, "AVE-SCL:Write");
+                   }
+                   if (wii_ipc.m_gpio_out[GPIO::AVE_SDA])
+                   {
+                     INFO_LOG_FMT(WII_IPC, "AVE-SDA:Write");
+                   }
                    // SENSOR_BAR is checked by WiimoteEmu::CameraLogic
                    // TODO: AVE, SLOT_LED
                  }));
