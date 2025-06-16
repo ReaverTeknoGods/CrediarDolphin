@@ -334,9 +334,12 @@ bool CBoot::EmulatedBS2_GC(Core::System& system, const Core::CPUThreadGuard& gua
   bool enable_gcam = (Type == ExpansionInterface::EXIDeviceType::AMMediaboard) ? 1 : 0;
   if (enable_gcam)
   {
+    u32 dsize = volume.GetDataSize();
+
     // Load game into RAM, like on the actual Triforce
-    u8* dimm_disc = AMMediaboard::InitDIMM();
-    volume.Read(0, 0x20000000, dimm_disc, DiscIO::PARTITION_NONE);
+    u8* dimm_disc = AMMediaboard::InitDIMM(dsize); 
+
+    volume.Read(0, dsize, dimm_disc, DiscIO::PARTITION_NONE);
 
     // Triforce disc register obfucation
     AMMediaboard::InitKeys(memory.Read_U32(0), memory.Read_U32(4), memory.Read_U32(8));

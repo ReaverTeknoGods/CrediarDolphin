@@ -21,16 +21,21 @@ class System;
 namespace ExpansionInterface
 {
 
-/*
-  All commands are left shifted by 6
-*/
+enum
+{
+  EXI_DEVTYPE_RVA = 0xFF800000
+};
+
+
+ // All commands are left shifted by 6
+
 enum class RVAMemoryMap : u32
 {
   JVS_ID = 0x00000000,
 
   WATCH_DOG = 0x00800000,  // 0x20000000
 
-  JVS_Switches = 0x00900000,  // 0x24000000
+  JVS_SWITCHES = 0x00900000,  // 0x24000000
 
   SRAM_SET_OFFSET = 0x28000000,
 
@@ -44,7 +49,7 @@ enum class RVAMemoryMap : u32
   JVS_IO_RX_LEN = 0x00B00014,  // 0x2C000500
   JVS_IO_DCSR = 0x00B00018,    // 0x2C000600
 
-  // IRQ Flags
+  // IRQ Status
   JVS_IO_SI_0_1_CSR = 0x00B0001C,  // 0x2C000700
 
   // UART0
@@ -64,6 +69,19 @@ enum class RVAMemoryMap : u32
   SI_1_RX_CNT = 0x00D0000C,  // 0x34000300
   SI_1_TX_RAT = 0x00D00010,  // 0x34000400
   SI_1_RX_RAT = 0x00D00014,  // 0x34000500
+};
+
+enum JVSIOCSR : u32
+{
+  JVS_IO_CSR_RX_INT = 0x80,
+  JVS_IO_CSR_TX_INT = 0x40,
+
+  JVS_IO_CSR_RX_EN_INT = 0x20,
+  JVS_IO_CSR_TX_EN_INT = 0x10,
+
+  JVS_IO_CSR_RESET = 0x01,
+
+  JVS_IO_CSR_MASK = 0x3F,
 };
 
 enum RVAIRQMasks : u32
@@ -236,15 +254,15 @@ public:
   explicit CEXIJVS();
   virtual ~CEXIJVS();
 
-  u32 Read(RVAMemoryMap address, u32 length);
+  u32 Read(RVAMemoryMap address, u32 size);
   void Write(RVAMemoryMap address, u32 value);
 
 private:
   u32 m_csr;
   u32 m_tx_data;
-  u32 m_tx_data_cnt;
+  u32 m_tx_count;
   u32 m_rx_data;
-  u32 m_rx_cnt;
+  u32 m_rx_count;
   u32 m_tx_len;
   u32 m_rx_len;
   u32 m_dscr;
@@ -252,11 +270,11 @@ private:
   u16 m_coin[2];
   u32 m_coin_pressed[2];
 
-  u8 m_jvs_data[255];
-  u8 m_jvs_offset;
+  u8 m_JVS_data[255];
+  u8 m_JVS_offset;
 
-  u8 m_jvs_reply_data[255];
-  u8 m_jvs_reply_offset;
+  u8 m_JVS_reply_data[255];
+  u8 m_JVS_reply_offset;
 };
 
 class CEXISI
@@ -265,28 +283,29 @@ public:
   explicit CEXISI();
   virtual ~CEXISI();
 
-  u32 Read(RVAMemoryMap address, u32 length);
+  void SetReply(SerialReplies reply, u32 size);
+  u32 Read(RVAMemoryMap address, u32 size);
   void Write(RVAMemoryMap address, u32 value);
-  void SetReply(u32 length, SerialReplies reply);
 
 private:
   u32 m_csr;
   u32 m_tx_data;
+  u32 m_tx_count;
   u32 m_rx_data;
-  u32 m_rx_cnt;
-  u32 m_tx_rat;
-  u32 m_rx_rat;
+  u32 m_rx_count;
+  u32 m_tx_rate;
+  u32 m_rx_rate;
   u32 m_status;
 
   RVAMemoryMap m_address;
 
-  u8 m_sibuf[255];
-  u8 m_siboff;
+  u8 m_SI_buf[255];
+  u8 m_SI_offset;
 
-  u8 m_rxoff;
+  u8 m_rx_offset;
   SerialReplies m_rx_type;
 
-  u32 m_irqc;
+  u32 m_IRQc;
 };
 
 class CEXIRVA : public IEXIDevice
@@ -313,9 +332,9 @@ private:
   u32 m_SRAM_size;
   u32 m_SRAM_check_off;
 
-  CEXIJVS m_jvs;
-  CEXISI m_si0;
-  CEXISI m_si1;
+  CEXIJVS m_JVS;
+  CEXISI m_SI0;
+  CEXISI m_SI1;
 };
 
 }  // namespace ExpansionInterface

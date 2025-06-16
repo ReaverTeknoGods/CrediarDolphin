@@ -1189,19 +1189,30 @@ void DVDInterface::ExecuteCommand(ReplyType reply_type)
     interrupt_type = DIInterruptType::DEINT;
     break;
 
-  // Unlock Commands. 1: "MATSHITA" 2: "DVD-GAME"
+  // Unlock Commands. 1: "MATSHITA" 2: "DVD-GAME" (GameCube)
+  // Unlock Commands. 1: "matshita" 2: "dvd-game" (Wii)
   // Just for fun
-  // Can only be used through direct access.  The unlock command doesn't seem to work on the Wii.
+  // Can only be used through direct access.
   case DICommand::DebugUnlock:
   {
     if (m_DICMDBUF[0] == 0xFF014D41 && m_DICMDBUF[1] == 0x54534849 && m_DICMDBUF[2] == 0x54410200)
     {
-      INFO_LOG_FMT(DVDINTERFACE, "Unlock test 1 passed");
+      INFO_LOG_FMT(DVDINTERFACE, "Unlock test 1 passed (GameCube)");
     }
     else if (m_DICMDBUF[0] == 0xFF004456 && m_DICMDBUF[1] == 0x442D4741 &&
              m_DICMDBUF[2] == 0x4D450300)
     {
-      INFO_LOG_FMT(DVDINTERFACE, "Unlock test 2 passed");
+      INFO_LOG_FMT(DVDINTERFACE, "Unlock test 2 passed (GameCube)");
+    }
+    else if (m_DICMDBUF[0] == 0xFF016D61 && m_DICMDBUF[1] == 0x74736869 &&
+             m_DICMDBUF[2] == 0x74610200)
+    {
+      INFO_LOG_FMT(DVDINTERFACE, "Unlock test 1 passed (Wii)");
+    }
+    else if (m_DICMDBUF[0] == 0xFF006476 && m_DICMDBUF[1] == 0x642D6761 &&
+             m_DICMDBUF[2] == 0x6D650300)
+    {
+      INFO_LOG_FMT(DVDINTERFACE, "Unlock test 2 passed (Wii)");
     }
     else
     {

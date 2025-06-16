@@ -55,14 +55,15 @@ static const wchar_t character_display_code[] =
 };
 
 
-static const u8 MatrixDisplayIDReply[] = {"\x02M202MD12BA\x03"};
+static const u8 matrix_display_ID_reply[] = {"\x02M202MD12BA\x03"};
 
-u8 VersionCheckReply[] = {2, '0', 'C', 'V', 'R', '0', '1', '0', '4', 'E', '5', 3};
+u8 version_check_reply[] = {2, '0', 'C', 'V', 'R', '0', '1', '0', '4', 'E', '5', 3};
 
-static const u8 BoardStatusReply[] = {2, '0', 'C', 'S', 'T', '8', '0', '0', '0', 'E', '7', 3};
+static const u8 board_status_reply[] = {2, '0', 'C', 'S', 'T', '8', '0', '0', '0', 'E', '7', 3};
 
-static const u8 UpdateInfoReply[] = {2, '0', 'A', 'U', 'P', '0', '0', '7', 'B', 3};
+static const u8 update_info_reply[] = {2, '0', 'A', 'U', 'P', '0', '0', '7', 'B', 3};
 
+// TODO: figure out correct reply
 u8 ConfigReply[] = {
     2, '1', '2', 'C', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'F', 'A', 'D', 3,
 };
@@ -91,43 +92,42 @@ static const u8 SI0_reply_6[] = {"\x02\x01\x00\x06TEST12\xAC"};
 
 // TMD hashes to detect versious versions
 
-static const u8 Mario_Party_FKC_2_Server_1302141211[20] = {
+static const u8 mario_party_FKC_2_server_1302141211[20] = {
     0x9F, 0x67, 0x2B, 0x38, 0x60, 0x30, 0xB4, 0x9F, 0x17, 0x53,
     0x80, 0xE2, 0x42, 0x42, 0xEC, 0x5E, 0x3F, 0x2F, 0x5E, 0xE6,
 };
 
-static const u8 Mario_Party_FKC_2_Client_1301080914[20] = {
+static const u8 mario_party_FKC_2_client_1301080914[20] = {
     0x9F, 0x67, 0x2B, 0x38, 0x60, 0x30, 0xB4, 0x9F, 0x17, 0x53,
     0x80, 0xE2, 0x42, 0x42, 0xEC, 0x5E, 0x3F, 0x2F, 0x5E, 0xE6,
 };
 
-static const u8 Mario_Party_FKC_2_Client_1302141156[20] = {
+static const u8 mario_party_FKC_2_client_1302141156[20] = {
     0x9F, 0x67, 0x2B, 0x38, 0x60, 0x30, 0xB4, 0x9F, 0x17, 0x53,
     0x80, 0xE2, 0x42, 0x42, 0xEC, 0x5E, 0x3F, 0x2F, 0x5E, 0xE6,
 };
 
-static const u8 Tatsunoko_VS_Capcom_0811051625[20] = {
+static const u8 tatsunoko_VS_capcom_0811051625[20] = {
     0x90, 0x2D, 0xDE, 0x93, 0xAB, 0xBF, 0x20, 0xD2, 0xB9, 0x6A,
     0x2D, 0xAB, 0xC3, 0x9E, 0x06, 0x74, 0xB7, 0x1C, 0x60, 0x30,
 };
 
 // clang-format on
 
-bool g_have_irq;
-u32 g_irq_delay;
-u32 g_irq_type;
+bool g_have_IRQ;
+u32 g_IRQ_delay;
+u32 g_IRQ_type;
 
-u32 g_exi_write_mode;
-u32 g_exi_write_size;
-u32 g_exi_write_count;
+u32 g_write_mode;
+u32 g_write_size;
 
 GameType g_game_type;
 
 static void InterruptSet(RVAIRQMasks Interrupt)
 {
-  g_have_irq = true;
-  g_irq_type = RVA_IRQ_MASK & ~Interrupt;
-  g_irq_delay = 10;
+  g_have_IRQ = true;
+  g_IRQ_type = RVA_IRQ_MASK & ~Interrupt;
+  g_IRQ_delay = 10;
 }
 
 static u8 CheckSum(u8* data, u32 length)
@@ -140,711 +140,6 @@ static u8 CheckSum(u8* data, u32 length)
   }
 
   return check;
-}
-
-CEXISI::CEXISI()
-{
-  m_csr = 0;
-  m_tx_data = 0;
-  m_rx_data = 0;
-  m_rx_cnt = 0;
-  m_tx_rat = 0;
-  m_rx_rat = 0;
-  m_status = 0;
-
-  g_irq_type = RVAIRQMasks::RVA_IRQ_MASK;
-
-  m_siboff = 0;
-  memset(m_sibuf, 0, sizeof(m_sibuf));
-  m_rxoff = 0;
-  m_irqc = 0;
-}
-
-CEXISI::~CEXISI() = default;
-
-void CEXISI::SetReply(u32 length, SerialReplies reply)
-{
-  m_rx_cnt = length;
-  m_rx_type = reply;
-  m_rxoff = 0;
-}
-
-u32 CEXISI::Read(RVAMemoryMap address, u32 size)
-{
-  auto& system = Core::System::GetInstance();
-  auto& memory = system.GetMemory();
-  auto& ppc_state = system.GetPPCState();
-  auto& jit_interface = system.GetJitInterface();
-
-  u32 data = 0;
-
-  switch (address)
-  {
-  case RVAMemoryMap::SI_0_CSR:
-    data = m_csr | 0x40;
-    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: CSR(R):{:08x}:{:02X}", size, data);
-    break;
-  case RVAMemoryMap::SI_0_TX_CNT:
-    data = m_siboff;
-    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: TX-CNT(R):{:08x}:{:02X}", size, data);
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_0_RXD:
-    data = m_rx_data;
-    switch (SerialReplies(m_rx_type))
-    {
-    case SerialReplies::SerialVersion:
-    {
-      data = SI0_reply_version[m_rxoff++];
-      if (m_rxoff > sizeof(SI0_reply_version))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::Serial_6:
-    {
-      data = SI0_reply_6[m_rxoff++];
-      if (m_rxoff > sizeof(SI0_reply_6))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::AMOServices:
-    {
-      data = AMO_reply_se[m_rxoff++];
-      if (m_rxoff > sizeof(AMO_reply_se))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::AMOVersionServer:
-    {
-      data = AMO_reply_version[m_rxoff++];
-      if (m_rxoff > sizeof(AMO_reply_version))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::AMOVersionClient:
-    {
-      data = AMO_reply_client_version[m_rxoff++];
-      if (m_rxoff > sizeof(AMO_reply_client_version))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::MPSIVersion:
-    {
-      data = VersionCheckReply[m_rxoff++];
-      if (m_rxoff > sizeof(VersionCheckReply))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::MPSIStatus:
-    {
-      data = BoardStatusReply[m_rxoff++];
-      if (m_rxoff > sizeof(BoardStatusReply))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::MPSIUpdate:
-    {
-      data = UpdateInfoReply[m_rxoff++];
-      if (m_rxoff > sizeof(UpdateInfoReply))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::SS:
-    {
-      data = SSReply[m_rxoff++];
-      if (m_rxoff > sizeof(SSReply))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::MPSIConfig:
-    {
-      data = ConfigReply[m_rxoff++];
-      if (m_rxoff > sizeof(ConfigReply))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    }
-
-    if (m_rx_cnt > 0)
-      m_rx_cnt--;
-
-    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RXD(R):{:08x}:{:02X}", size, data);
-    break;
-  case RVAMemoryMap::SI_0_RX_CNT:
-    data = m_rx_cnt;
-    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RX-CNT(R):{:08x}:{:02X}", size, data);
-    break;
-  case RVAMemoryMap::SI_1_RXD:
-    switch (SerialReplies(m_rx_type))
-    {
-    case SerialReplies::MDCDisplayID:
-    {
-      data = MatrixDisplayIDReply[m_rxoff++];
-      if (m_rxoff > sizeof(MatrixDisplayIDReply))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::AMOServices:
-    {
-      data = AMO_reply_se[m_rxoff++];
-      if (m_rxoff > sizeof(AMO_reply_se))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::AMOVersionServer:
-    {
-      data = AMO_reply_version[m_rxoff++];
-      if (m_rxoff > sizeof(AMO_reply_version))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::AMOVersionClient:
-    {
-      data = AMO_reply_client_version[m_rxoff++];
-      if (m_rxoff > sizeof(AMO_reply_client_version))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::AMOInfo:
-    {
-      data = AMO_reply_ie[m_rxoff++];
-      if (m_rxoff > sizeof(AMO_reply_ie))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::MPSIVersion:
-    {
-      data = VersionCheckReply[m_rxoff++];
-      if (m_rxoff > sizeof(VersionCheckReply))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    case SerialReplies::MPSIStatus:
-    {
-      data = BoardStatusReply[m_rxoff++];
-      if (m_rxoff > sizeof(BoardStatusReply))
-      {
-        m_rxoff = 0;
-      }
-    }
-    break;
-    default:
-    {
-      data = m_rx_data;
-    }
-    break;
-    }
-    if (m_rx_cnt > 0)
-      m_rx_cnt--;
-
-    if (m_rx_cnt == 0)
-    {
-      if (memory.Read_U32(0x800FAE90) == 0x60000000)
-      {
-        memory.Write_U32(0x48000011, 0x800FAE90);
-        ppc_state.iCache.Invalidate(memory, jit_interface, 0x800FAE90);
-      }
-    }
-
-    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RXD(R):{:08x}:{:02X}", size, data);
-    break;
-  case RVAMemoryMap::SI_1_TX_CNT:
-    data = m_siboff;
-    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: TX-CNT(R):{:08x}:{:02X}", size, data);
-    m_status = 0;
-    break;
-  case RVAMemoryMap::SI_1_RX_RAT:
-    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RX-RAT(R):{:08x}", size);
-    break;
-  case RVAMemoryMap::SI_1_CSR:
-    data = m_csr | 0x40;
-    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: CSR(R):{:08x}:{:02X}", size, data);
-    break;
-  case RVAMemoryMap::SI_1_RX_CNT:
-    data = m_rx_cnt;
-    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RX-CNT(R):{:08x}:{:02X}", size, data);
-    break;
-  default:
-    WARN_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: Unhandled Memory Address Read {:08x}:{:08x}",
-                 (u32)address, size);
-    return 0x00;
-  }
-
-  return data;
-}
-
-void CEXISI::Write(RVAMemoryMap address, u32 value)
-{
-  auto& system = Core::System::GetInstance();
-  auto& memory = system.GetMemory();
-  auto& ppc_state = system.GetPPCState();
-  auto& jit_interface = system.GetJitInterface();
-
-  if ((u32)address == (value >> 6))
-  {
-    return;
-  }
-
-  u32 value_swap = Common::swap32(value);
-  wchar_t mtext[128];
-
-  switch (address)
-  {
-  case RVAMemoryMap::SI_0_CSR:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: CSR(W): {:02x}", value_swap);
-    m_csr = value_swap & 0x3F;
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_1_CSR:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: CSR(W): {:02x}", value_swap);
-    m_csr = value_swap & 0x3F;
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_0_TXD:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: TXD(W): {:02x}", value_swap);
-    m_tx_data = value_swap;
-    m_sibuf[m_siboff++] = value_swap;
-    m_status = 0x800;
-    break;
-  case RVAMemoryMap::SI_1_TXD:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: TXD(W): {:02x}", value_swap);
-    m_tx_data = value_swap;
-    m_sibuf[m_siboff++] = value_swap;
-    m_status = 0x800;
-    break;
-  case RVAMemoryMap::SI_0_RXD:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RXD(W): {:02x}", value_swap);
-    m_rx_data = value_swap;
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_1_RXD:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RXD(W): {:02x}", value_swap);
-    m_rx_data = value_swap;
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_0_RX_CNT:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RX-CNT(W): {:02x}", value_swap);
-    m_rx_cnt = value_swap;
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_1_RX_CNT:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RX-CNT(W): {:02x}", value_swap);
-    m_rx_cnt = value_swap;
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_0_TX_RAT:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: TX-RAT(W): {:02x}", value_swap);
-    m_tx_rat = value_swap;
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_1_TX_RAT:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: TX-RAT(W): {:02x}", value_swap);
-    m_tx_rat = value_swap;
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_0_RX_RAT:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RX-RAT(W): {:02x}", value_swap);
-    m_rx_rat = value_swap;
-
-    if (m_rx_rat == 0x19 && m_csr == 0x03)
-    {
-      DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0:IRQ Request? {:02x}", m_irqc);
-      m_irqc++;
-    }
-
-    if (m_irqc == 4)
-    {
-      InterruptSet(RVA_IRQ_S0_RX);
-      SetReply(sizeof(SI0_reply_6), SerialReplies::Serial_6);
-    }
-    g_exi_write_mode = 0;
-    break;
-  case RVAMemoryMap::SI_1_RX_RAT:
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RX-RAT(W): {:02x}", value_swap);
-    m_rx_rat = value_swap;
-    g_exi_write_mode = 0;
-    break;
-  default:
-    ERROR_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI(?): Unhandled address write: {:08x} {:08x}",
-                  (u32)address, value_swap);
-    break;
-  }
-
-  if (m_siboff)
-  {
-    // Only allow valid commands
-    if (m_sibuf[0] != 2 && m_sibuf[0] != 0x2F)
-    {
-      m_siboff = 0;
-      return;
-    }
-  }
-
-  if (m_siboff > 2)
-  {
-    // check for matrix display command
-    if (m_sibuf[0] == 2 && m_sibuf[1] == 0x10)
-    {
-      // size is in byte 4
-      if (m_siboff >= 4)
-      {
-        // Check for full packet
-        if (m_siboff >= m_sibuf[3] + 5)
-        {
-          INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: {:02x}", m_sibuf[4]);
-
-          switch (MatrixDisplayCommand(m_sibuf[4]))
-          {
-          case MatrixDisplayCommand::Reset:
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Reset");
-            break;
-          case MatrixDisplayCommand::Clear:
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Clear");
-            break;
-          case MatrixDisplayCommand::Scroll:
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Scroll");
-            break;
-          case MatrixDisplayCommand::DisplayPos:
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: DisplayPos");
-            // BUG: it misses to send the checksum?
-            if (m_sibuf[6] == 0x02)
-            {
-              memset(m_sibuf, 0, sizeof(m_sibuf));
-              m_sibuf[0] = 0x02;
-              m_siboff = 1;
-              return;
-            }
-            break;
-          case MatrixDisplayCommand::DisplayID:
-          {
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Get Display ID");
-            InterruptSet(RVA_IRQ_S1_RX);
-            SetReply(sizeof(MatrixDisplayIDReply), SerialReplies::MDCDisplayID);
-
-            /*
-              BUG: The recv loop calles OSSuspendThread and then never returns
-            */
-            if (memory.Read_U32(0x800FAE90) == 0x48000011)
-            {
-              memory.Write_U32(0x60000000, 0x800FAE90);
-              ppc_state.iCache.Invalidate(memory, jit_interface, 0x800FAE90);
-            }
-          }
-          break;
-          // No command just prints the text
-          default:
-            /*
-              Remap text
-            */
-            memset(mtext, 0, sizeof(mtext));
-
-            for (u32 i = 0; i < strlen((char*)(m_sibuf + 4)) - 1; ++i)
-            {
-              mtext[i] = character_display_code[m_sibuf[i + 4]];
-            }
-#ifdef _WIN32
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Text: {}", TStrToUTF8(mtext));
-#endif
-            // WARN_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Unhandled Command {:02x}",
-            // m_sibuf[4]);
-            break;
-          }
-
-          g_exi_write_size = 0;
-          g_exi_write_count = 0;
-          g_exi_write_mode = 0;
-          m_tx_data = 0;
-          m_siboff = 0;
-          memset(m_sibuf, 0, sizeof(m_sibuf));
-        }
-      }
-      return;
-    }
-
-    // Device on SI0
-    if (m_sibuf[0] == 2 && m_sibuf[1] == 3)
-    {
-      // Size is in byte 4
-      if (m_siboff >= 4)
-      {
-        // Check for full packet
-        if (m_siboff >= m_sibuf[3] + 5)
-        {
-          INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: UNK3: {:02x}", m_sibuf[4]);
-
-          g_exi_write_size = 0;
-          g_exi_write_count = 0;
-          g_exi_write_mode = 0;
-          m_tx_data = 0;
-          m_siboff = 0;
-          memset(m_sibuf, 0, sizeof(m_sibuf));
-        }
-      }
-      return;
-    }
-
-    if (m_sibuf[0] == 2 && m_sibuf[1] == 4)
-    {
-      if (m_siboff >= 5)
-      {
-        INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: UNK4: {:02x}", m_sibuf[4]);
-
-        InterruptSet(RVA_IRQ_S0_RX);
-
-        m_rx_cnt = sizeof(SI0_reply_version);
-        m_rx_type = SerialReplies::SerialVersion;
-        m_rxoff = 0;
-
-        g_exi_write_size = 0;
-        g_exi_write_count = 0;
-        g_exi_write_mode = 0;
-        m_tx_data = 0;
-        m_siboff = 0;
-        memset(m_sibuf, 0, sizeof(m_sibuf));
-      }
-      return;
-    }
-
-    // ?
-    if (m_sibuf[0] == 2 && m_sibuf[1] == 6)
-    {
-      // Size is in byte 4
-      if (m_siboff >= 4)
-      {
-        // Check for full packet
-        if (m_siboff == m_sibuf[3] + 5)
-        {
-          INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: UNK6: {:02x}", m_sibuf[2]);
-
-          InterruptSet(RVA_IRQ_S0_RX);
-
-          m_rx_cnt = sizeof(SI0_reply_6);
-          m_rx_type = SerialReplies::Serial_6;
-          m_rxoff = 0;
-
-          g_exi_write_size = 0;
-          g_exi_write_count = 0;
-          g_exi_write_mode = 0;
-          m_tx_data = 0;
-          m_siboff = 0;
-          memset(m_sibuf, 0, sizeof(m_sibuf));
-        }
-      }
-      return;
-    }
-
-    // AMO board CMD:
-    if (m_sibuf[0] == 0x2F && m_siboff == 7)
-    {
-      // replace new lines for nicer print
-      for (u32 i = 0; m_sibuf[i] != 3; ++i)
-      {
-        if (m_sibuf[i] == '\n')
-          m_sibuf[i] = ' ';
-      }
-
-      m_sibuf[6] = 0;
-
-      NOTICE_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: AMO: {}", (char*)m_sibuf);
-
-      switch (m_sibuf[1])
-      {
-      case 's':
-        m_rx_type = SerialReplies::AMOServices;
-        m_rx_cnt = sizeof(AMO_reply_se);
-        break;
-      case 'v':
-        switch (g_game_type)
-        {
-        default:
-        case GameType::MarioPartyFKC2Server:
-          m_rx_type = SerialReplies::AMOVersionServer;
-          m_rx_cnt = sizeof(AMO_reply_version);
-          break;
-        case GameType::MarioPartyFKC2Client:
-          m_rx_type = SerialReplies::AMOVersionClient;
-          m_rx_cnt = sizeof(AMO_reply_client_version);
-          break;
-        }
-
-        break;
-      case 'i':
-        m_rx_type = SerialReplies::AMOInfo;
-        m_rx_cnt = sizeof(AMO_reply_ie);
-        break;
-      default:
-        WARN_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: AMO: Unhandled Command {:02x}", m_sibuf[1]);
-        break;
-      }
-
-      if (m_rx_cnt)
-      {
-        if (address == RVAMemoryMap::SI_0_TXD)
-        {
-          InterruptSet(RVA_IRQ_S0_RX);
-        }
-        else
-        {
-          InterruptSet(RVA_IRQ_S1_RX);
-        }
-        m_rxoff = 0;
-      }
-
-      // Hack: Fixes OSSleepThread bug in Mario Party F.K.C 2
-      if (memory.Read_U32(0x800FAE90) == 0x48000011)
-      {
-        memory.Write_U32(0x60000000, 0x800FAE90);
-        ppc_state.iCache.Invalidate(memory, jit_interface, 0x800FAE90);
-      }
-
-      g_exi_write_mode = 0;
-      m_tx_data = 0;
-      m_siboff = 0;
-      memset(m_sibuf, 0, sizeof(m_sibuf));
-      return;
-    }
-
-    // Device on SI0/1
-    // First part of the command has the size
-    if (m_sibuf[0] == 2 && m_siboff == 5)
-    {
-      // Size is in bytes 2 and 3 as ASCII
-      sscanf((char*)m_sibuf + 1, "%02X", &g_exi_write_size);
-      g_exi_write_mode = 0;
-      m_rx_cnt = 0;
-      return;
-    }
-
-    // If size is larger than 8 bytes it is split in three parts
-    if (g_exi_write_size > 8)
-    {
-      if (m_siboff == g_exi_write_size - 3)
-      {
-        g_exi_write_mode = 0;
-        return;
-      }
-    }
-
-    // 2nd part completed
-    if (m_sibuf[0] == 2 && m_siboff == g_exi_write_size)
-      if (m_sibuf[g_exi_write_size - 1] == 3)
-      {
-        INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: MPSI: {}", (char*)(m_sibuf + 1));
-
-        switch (MarioPartySerialCommand(*(u16*)(m_sibuf + 3)))
-        {
-        // Send a fake reply to test if a reply is read
-        default:
-          WARN_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: MPSI: Unhandled Command {:02x}{:02x}",
-                       m_sibuf[3], m_sibuf[4]);
-        case MarioPartySerialCommand::Version:
-        case MarioPartySerialCommand::Reset:
-
-          VersionCheckReply[3] = m_sibuf[3];
-          VersionCheckReply[4] = m_sibuf[4];
-
-          m_rx_cnt = sizeof(VersionCheckReply);
-          m_rx_type = SerialReplies::MPSIVersion;
-
-          // Checksum is ASCII
-          VersionCheckReply[9] = 0;
-          VersionCheckReply[10] = 0;
-          sprintf((char*)VersionCheckReply + 9, "%02X",
-                  CheckSum(VersionCheckReply, sizeof(VersionCheckReply)));
-
-          // End byte
-          VersionCheckReply[11] = 3;
-
-          break;
-        case MarioPartySerialCommand::Status:
-          m_rx_cnt = sizeof(BoardStatusReply);
-          m_rx_type = SerialReplies::MPSIStatus;
-          break;
-        case MarioPartySerialCommand::Update:
-          m_rx_cnt = sizeof(UpdateInfoReply);
-          m_rx_type = SerialReplies::MPSIUpdate;
-          break;
-        case MarioPartySerialCommand::Config:
-          m_rx_cnt = sizeof(ConfigReply);
-          m_rx_type = SerialReplies::MPSIConfig;
-          break;
-        case MarioPartySerialCommand::SS:
-          m_rx_cnt = sizeof(SSReply);
-          m_rx_type = SerialReplies::SS;
-          break;
-        // No reply
-        case MarioPartySerialCommand::Error:
-        case MarioPartySerialCommand::MI:
-        case MarioPartySerialCommand::MO:
-        case MarioPartySerialCommand::PM:
-        case MarioPartySerialCommand::BI:
-        case MarioPartySerialCommand::BO:
-        case MarioPartySerialCommand::OT:
-        case MarioPartySerialCommand::CI:
-        case MarioPartySerialCommand::WM:
-        case MarioPartySerialCommand::BJ:
-        case MarioPartySerialCommand::CU:
-        case MarioPartySerialCommand::SU:
-        case MarioPartySerialCommand::HP:
-        case MarioPartySerialCommand::PU:
-        case MarioPartySerialCommand::MT:
-        case MarioPartySerialCommand::LR:
-          m_rx_cnt = 0;
-          break;
-        }
-
-        if (m_rx_cnt)
-        {
-          if (address == RVAMemoryMap::SI_0_TXD)
-          {
-            InterruptSet(RVA_IRQ_S0_RX);
-          }
-          else
-          {
-            InterruptSet(RVA_IRQ_S1_RX);
-          }
-          m_rxoff = 0;
-        }
-
-        g_exi_write_size = 0;
-        g_exi_write_mode = 0;
-
-        m_siboff = 0;
-        memset(m_sibuf, 0, sizeof(m_sibuf));
-      }
-  }
 }
 
 JVSIOMessage::JVSIOMessage()
@@ -910,65 +205,65 @@ void JVSIOMessage::end()
 CEXIJVS::CEXIJVS()
 {
   m_csr = 0;
-  m_tx_data_cnt = 0;
+  m_tx_count = 0;
   m_rx_data = 0;
   m_tx_len = 0;
   m_rx_len = 0;
   m_dscr = 0;
-  g_exi_write_size = 0;
-  g_exi_write_count = 0;
 
   memset(m_coin, 0, sizeof(m_coin));
   memset(m_coin_pressed, 0, sizeof(m_coin_pressed));
 
-  m_jvs_offset = 0;
-  memset(m_jvs_data, 0, sizeof(m_jvs_data));
+  m_JVS_offset = 0;
+  memset(m_JVS_data, 0, sizeof(m_JVS_data));
 }
 
 u32 CEXIJVS::Read(RVAMemoryMap address, u32 size)
 {
-  static u32 switch_status = 0xFFFFFFFF;
+  u32 switch_status = 0xFFFFFFFF;
   u32 data = 0;
-  GCPadStatus pad_status;
+  GCPadStatus pad_status = Pad::GetStatus(0);
 
   switch (address)
   {
-  case RVAMemoryMap::JVS_Switches:
-    pad_status = Pad::GetStatus(0);
-
+  case RVAMemoryMap::JVS_SWITCHES:
     if (pad_status.button & PAD_TRIGGER_Z)
       switch_status &= ~0x10000000;
-    else
-      switch_status |= 0x10000000;
 
     if (pad_status.button & PAD_TRIGGER_L)
       switch_status &= ~0x20000000;
-    else
-      switch_status |= 0x20000000;
 
     data = switch_status;
     break;
   case RVAMemoryMap::JVS_IO_CSR:
-    data = m_csr | 0x40;
+    data = m_csr | JVS_IO_CSR_TX_INT;
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: CSR(R): {:02x}", data);
     break;
-  case RVAMemoryMap::JVS_IO_TXD:
-    data = 0;
-    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: TXD(R): {:02x}", data);
+  case RVAMemoryMap::JVS_IO_TX_CNT:
+    data = m_tx_count;
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: TX_CNT(R): {:02x}", data);
     break;
   case RVAMemoryMap::JVS_IO_DCSR:
     data = m_dscr;
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: DCSR(R): {:02x}", data);
     break;
   case RVAMemoryMap::JVS_IO_RX_CNT:
-    data = m_rx_cnt;
+    data = m_rx_count;
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: RX_CNT(R): {:02x}", data);
+    break;
+  case RVAMemoryMap::JVS_IO_TX_LEN:
+    data = m_tx_len;
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: TX_LEN(R): {:02x}", data);
+    break;
+  case RVAMemoryMap::JVS_IO_RX_LEN:
+    data = m_rx_len;
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: RX_LEN(R): {:02x}", data);
     break;
   case RVAMemoryMap::JVS_IO_RXD:
   {
-    data = m_jvs_reply_data[m_jvs_reply_offset - m_rx_cnt];
-    if (m_rx_cnt > 0)
-      m_rx_cnt--;
+    data = m_JVS_reply_data[m_JVS_reply_offset - m_rx_count];
+    if (m_rx_count > 0)
+      m_rx_count--;
 
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: RX_RXD(R): {:02x}", data);
   }
@@ -992,39 +287,39 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
 
   switch (address)
   {
-  case RVAMemoryMap::JVS_Switches:
-    g_exi_write_mode = 0;
+  case RVAMemoryMap::JVS_SWITCHES:
+    g_write_mode = 0;
     break;
   case RVAMemoryMap::JVS_IO_CSR:
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: CSR(W): {:02x}", value_swap);
-    m_csr = value_swap & 0x3F;
-    g_exi_write_mode = 0;
+    m_csr = value_swap & JVS_IO_CSR_MASK;
+    g_write_mode = 0;
     break;
   case RVAMemoryMap::JVS_IO_TXD:
   {
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: TX_TXD(W): {:02x}", value_swap);
 
     m_tx_data = value_swap;
-    m_jvs_data[m_jvs_offset++] = value_swap;
+    m_JVS_data[m_JVS_offset++] = value_swap;
 
-    if (m_jvs_offset > 2)
+    if (m_JVS_offset > 2)
     {
-      u8 size = m_jvs_data[2] + 3;
-      if (m_jvs_offset == size)
+      u8 size = m_JVS_data[2] + 3;
+      if (m_JVS_offset == size)
       {
         JVSIOMessage msg;
 
-        u8 node = m_jvs_data[1];
+        u8 node = m_JVS_data[1];
 
         msg.start(node);
         msg.addData(1);
 
-        u8* jvs_io = m_jvs_data + 3;
-        m_jvs_offset--;  // checksum
+        u8* jvs_io = m_JVS_data + 3;
+        m_JVS_offset--;  // checksum
 
         GCPadStatus pad_status;
 
-        while (jvs_io < (m_jvs_data + m_jvs_offset))
+        while (jvs_io < (m_JVS_data + m_JVS_offset))
         {
           int cmd = *jvs_io++;
           DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO:node={}, command={:02x}", node, cmd);
@@ -1062,11 +357,12 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
             break;
           case JVSIOCommands::SwitchesInput:
           {
-            int player_count = *jvs_io++;
-            int player_byte_count = *jvs_io++;
+            u8 player_count = *jvs_io++;
+            u8 player_byte_count = *jvs_io++;
 
-            INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Command 20, SwitchesInput: Players:{} Bytes:{}",
-                         player_count, player_byte_count);
+            INFO_LOG_FMT(EXPANSIONINTERFACE,
+                         "RVA-JVS-IO: Command 20, SwitchesInput: Players:{} Bytes:{}", player_count,
+                         player_byte_count);
 
             InterruptSet(RVA_IRQ_JVS_RS_RX);
 
@@ -1181,16 +477,17 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
 
         msg.end();
 
-        memset(m_jvs_reply_data, 0, sizeof(m_jvs_reply_data));
+        memset(m_JVS_reply_data, 0, sizeof(m_JVS_reply_data));
 
-        m_jvs_reply_offset = msg.m_ptr;
-        m_rx_cnt = msg.m_ptr;
+        m_JVS_reply_offset = msg.m_ptr;
+        m_rx_count = msg.m_ptr;
 
-        memcpy(m_jvs_reply_data, msg.m_msg, msg.m_ptr);
+        memcpy(m_JVS_reply_data, msg.m_msg, msg.m_ptr);
 
-        memset(m_jvs_data, 0, sizeof(m_jvs_data));
-        m_jvs_offset = 0;
-        g_exi_write_mode = 0;
+        memset(m_JVS_data, 0, sizeof(m_JVS_data));
+        m_JVS_offset = 0;
+        g_write_mode = 0;
+        m_rx_len = m_rx_count;
       }
     }
   }
@@ -1198,17 +495,17 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
   case RVAMemoryMap::JVS_IO_TX_LEN:
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: TX_LEN(W): {:02x}", value_swap);
     m_tx_len = value_swap;
-    g_exi_write_mode = 0;
+    g_write_mode = 0;
     break;
   case RVAMemoryMap::JVS_IO_RX_LEN:
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: RX_LEN(W): {:02x}", value_swap);
     m_rx_len = value_swap;
-    g_exi_write_mode = 0;
+    g_write_mode = 0;
     break;
   case RVAMemoryMap::JVS_IO_DCSR:
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: DCSR(W): {:02x}", value_swap);
     m_dscr = value_swap;
-    g_exi_write_mode = 0;
+    g_write_mode = 0;
     break;
   default:
     ERROR_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS: Unhandled address write: {:08x} {:02x}",
@@ -1221,15 +518,687 @@ CEXIJVS::~CEXIJVS()
 {
 }
 
-CEXIRVA::CEXIRVA(Core::System& system) : IEXIDevice(system), m_jvs(), m_si0(), m_si1()
+CEXISI::CEXISI()
 {
+  m_csr = 0;
+  m_tx_data = 0;
+  m_tx_count = 0;
+  m_rx_data = 0;
+  m_rx_count = 0;
+  m_tx_rate = 0;
+  m_rx_rate = 0;
+  m_status = 0;
+
+  m_SI_offset = 0;
+  memset(m_SI_buf, 0, sizeof(m_SI_buf));
+  m_rx_offset = 0;
+  m_IRQc = 0;
+}
+
+CEXISI::~CEXISI() = default;
+
+void CEXISI::SetReply(SerialReplies reply, u32 size)
+{
+  m_rx_count = size;
+  m_rx_type = reply;
+  m_rx_offset = 0;
+}
+
+u32 CEXISI::Read(RVAMemoryMap address, u32 size)
+{
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+  auto& ppc_state = system.GetPPCState();
+  auto& jit_interface = system.GetJitInterface();
+
+  u32 data = 0;
+
+  switch (address)
+  {
+  case RVAMemoryMap::SI_0_CSR:
+    data = m_csr | 0x40;
+    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: CSR(R):{:08x}:{:02X}", size, data);
+    break;
+  case RVAMemoryMap::SI_0_TX_CNT:
+    data = m_tx_count;
+    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: TX-CNT(R):{:08x}:{:02X}", size, data);
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_0_RXD:
+    switch (SerialReplies(m_rx_type))
+    {
+    case SerialReplies::SerialVersion:
+      data = SI0_reply_version[m_rx_offset++];
+      if (m_rx_offset > sizeof(SI0_reply_version))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    case SerialReplies::Serial_6:
+      data = SI0_reply_6[m_rx_offset++];
+      if (m_rx_offset > sizeof(SI0_reply_6))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    case SerialReplies::AMOServices:
+      data = AMO_reply_se[m_rx_offset++];
+      if (m_rx_offset > sizeof(AMO_reply_se))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    case SerialReplies::AMOVersionServer:
+      data = AMO_reply_version[m_rx_offset++];
+      if (m_rx_offset > sizeof(AMO_reply_version))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    case SerialReplies::AMOVersionClient:
+      data = AMO_reply_client_version[m_rx_offset++];
+      if (m_rx_offset > sizeof(AMO_reply_client_version))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    case SerialReplies::MPSIVersion:
+      data = version_check_reply[m_rx_offset++];
+      if (m_rx_offset > sizeof(version_check_reply))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    case SerialReplies::MPSIStatus:
+      data = board_status_reply[m_rx_offset++];
+      if (m_rx_offset > sizeof(board_status_reply))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    case SerialReplies::MPSIUpdate:
+      data = update_info_reply[m_rx_offset++];
+      if (m_rx_offset > sizeof(update_info_reply))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    case SerialReplies::SS:
+      data = SSReply[m_rx_offset++];
+      if (m_rx_offset > sizeof(SSReply))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    case SerialReplies::MPSIConfig:
+      data = ConfigReply[m_rx_offset++];
+      if (m_rx_offset > sizeof(ConfigReply))
+      {
+        m_rx_offset = 0;
+      }
+      break;
+    default:
+      data = m_rx_data;
+      break;
+    }
+
+    if (m_rx_count > 0)
+      m_rx_count--;
+
+    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RXD(R):{:08x}:{:02X}", size, data);
+    break;
+  case RVAMemoryMap::SI_0_RX_CNT:
+    data = m_rx_count;
+    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RX-CNT(R):{:08x}:{:02X}", size, data);
+    break;
+  case RVAMemoryMap::SI_1_CSR:
+    data = m_csr | 0x40;
+    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: CSR(R):{:08x}:{:02X}", size, data);
+    break;
+  case RVAMemoryMap::SI_1_TX_CNT:
+    data = m_tx_count;
+    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: TX-CNT(R):{:08x}:{:02X}", size, data);
+    m_status = 0;
+    break;
+  case RVAMemoryMap::SI_1_RXD:
+    switch (SerialReplies(m_rx_type))
+    {
+    case SerialReplies::MDCDisplayID:
+    {
+      data = matrix_display_ID_reply[m_rx_offset++];
+      if (m_rx_offset > sizeof(matrix_display_ID_reply))
+      {
+        m_rx_offset = 0;
+      }
+    }
+    break;
+    case SerialReplies::AMOServices:
+    {
+      data = AMO_reply_se[m_rx_offset++];
+      if (m_rx_offset > sizeof(AMO_reply_se))
+      {
+        m_rx_offset = 0;
+      }
+    }
+    break;
+    case SerialReplies::AMOVersionServer:
+    {
+      data = AMO_reply_version[m_rx_offset++];
+      if (m_rx_offset > sizeof(AMO_reply_version))
+      {
+        m_rx_offset = 0;
+      }
+    }
+    break;
+    case SerialReplies::AMOVersionClient:
+    {
+      data = AMO_reply_client_version[m_rx_offset++];
+      if (m_rx_offset > sizeof(AMO_reply_client_version))
+      {
+        m_rx_offset = 0;
+      }
+    }
+    break;
+    case SerialReplies::AMOInfo:
+    {
+      data = AMO_reply_ie[m_rx_offset++];
+      if (m_rx_offset > sizeof(AMO_reply_ie))
+      {
+        m_rx_offset = 0;
+      }
+    }
+    break;
+    case SerialReplies::MPSIVersion:
+    {
+      data = version_check_reply[m_rx_offset++];
+      if (m_rx_offset > sizeof(version_check_reply))
+      {
+        m_rx_offset = 0;
+      }
+    }
+    break;
+    case SerialReplies::MPSIStatus:
+    {
+      data = board_status_reply[m_rx_offset++];
+      if (m_rx_offset > sizeof(board_status_reply))
+      {
+        m_rx_offset = 0;
+      }
+    }
+    break;
+    default:
+    {
+      data = m_rx_data;
+    }
+    break;
+    }
+    if (m_rx_count > 0)
+      m_rx_count--;
+
+    if (m_rx_count == 0)
+    {
+      if (memory.Read_U32(0x800FAE90) == 0x60000000)
+      {
+        memory.Write_U32(0x48000011, 0x800FAE90);
+        ppc_state.iCache.Invalidate(memory, jit_interface, 0x800FAE90);
+      }
+    }
+
+    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RXD(R):{:08x}:{:02X}", size, data);
+    break;
+  case RVAMemoryMap::SI_1_RX_CNT:
+    data = m_rx_count;
+    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RX-CNT(R):{:08x}:{:02X}", size, data);
+    break;
+  case RVAMemoryMap::SI_1_RX_RAT:
+    data = m_rx_rate;
+    INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RX-RAT(R):{:08x}", size);
+    break;
+  default:
+    WARN_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: Unhandled Memory Address Read {:08x}:{:08x}",
+                 (u32)address, size);
+    return 0x00;
+  }
+
+  return data;
+}
+
+void CEXISI::Write(RVAMemoryMap address, u32 value)
+{
+  auto& system = Core::System::GetInstance();
+  auto& memory = system.GetMemory();
+  auto& ppc_state = system.GetPPCState();
+  auto& jit_interface = system.GetJitInterface();
+
+  if ((u32)address == (value >> 6))
+  {
+    return;
+  }
+
+  u32 value_swap = Common::swap32(value);
+  wchar_t mtext[128];
+
+  switch (address)
+  {
+  case RVAMemoryMap::SI_0_CSR:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: CSR(W): {:02x}", value_swap);
+    m_csr = value_swap & 0x3F;
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_1_CSR:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: CSR(W): {:02x}", value_swap);
+    m_csr = value_swap & 0x3F;
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_0_TXD:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: TXD(W): {:02x}", value_swap);
+    m_tx_data = value_swap;
+    m_SI_buf[m_SI_offset++] = value_swap;
+    m_status = 0x800;
+    break;
+  case RVAMemoryMap::SI_1_TXD:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: TXD(W): {:02x}", value_swap);
+    m_tx_data = value_swap;
+    m_SI_buf[m_SI_offset++] = value_swap;
+    m_status = 0x800;
+    break;
+  case RVAMemoryMap::SI_0_RXD:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RXD(W): {:02x}", value_swap);
+    m_rx_data = value_swap;
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_1_RXD:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RXD(W): {:02x}", value_swap);
+    m_rx_data = value_swap;
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_0_RX_CNT:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RX-CNT(W): {:02x}", value_swap);
+    m_rx_count = value_swap;
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_1_RX_CNT:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RX-CNT(W): {:02x}", value_swap);
+    m_rx_count = value_swap;
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_0_TX_RAT:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: TX-RAT(W): {:02x}", value_swap);
+    m_tx_rate = value_swap;
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_1_TX_RAT:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: TX-RAT(W): {:02x}", value_swap);
+    m_tx_rate = value_swap;
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_0_RX_RAT:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: RX-RAT(W): {:02x}", value_swap);
+    m_rx_rate = value_swap;
+
+    if (m_rx_rate == 0x19 && m_csr == 0x03)
+    {
+      DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0:IRQ Request? {:02x}", m_IRQc);
+      m_IRQc++;
+    }
+
+    if (m_IRQc == 4)
+    {
+      InterruptSet(RVA_IRQ_S0_RX);
+      SetReply(SerialReplies::Serial_6, sizeof(SI0_reply_6));
+    }
+    g_write_mode = 0;
+    break;
+  case RVAMemoryMap::SI_1_RX_RAT:
+    DEBUG_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: RX-RAT(W): {:02x}", value_swap);
+    m_rx_rate = value_swap;
+    g_write_mode = 0;
+    break;
+  default:
+    ERROR_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI(?): Unhandled address write: {:08x} {:08x}",
+                  (u32)address, value_swap);
+    break;
+  }
+
+  if (m_SI_offset)
+  {
+    // Only allow valid commands
+    if (m_SI_buf[0] != 2 && m_SI_buf[0] != 0x2F)
+    {
+      m_SI_offset = 0;
+      return;
+    }
+  }
+
+  if (m_SI_offset > 2)
+  {
+    // check for matrix display command
+    if (m_SI_buf[0] == 2 && m_SI_buf[1] == 0x10)
+    {
+      // size is in byte 4
+      if (m_SI_offset >= 4)
+      {
+        // Check for full packet
+        if (m_SI_offset >= m_SI_buf[3] + 5)
+        {
+          INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: {:02x}", m_SI_buf[4]);
+
+          switch (MatrixDisplayCommand(m_SI_buf[4]))
+          {
+          case MatrixDisplayCommand::Reset:
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Reset");
+            break;
+          case MatrixDisplayCommand::Clear:
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Clear");
+            break;
+          case MatrixDisplayCommand::Scroll:
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Scroll");
+            break;
+          case MatrixDisplayCommand::DisplayPos:
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: DisplayPos");
+            // BUG: it misses to send the checksum?
+            if (m_SI_buf[6] == 0x02)
+            {
+              memset(m_SI_buf, 0, sizeof(m_SI_buf));
+              m_SI_buf[0] = 0x02;
+              m_SI_offset = 1;
+              return;
+            }
+            break;
+          case MatrixDisplayCommand::DisplayID:
+          {
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Get Display ID");
+            InterruptSet(RVA_IRQ_S1_RX);
+            SetReply(SerialReplies::MDCDisplayID, sizeof(matrix_display_ID_reply));
+
+            /*
+              BUG: The recv loop calles OSSuspendThread and then never returns
+            */
+            if (memory.Read_U32(0x800FAE90) == 0x48000011)
+            {
+              memory.Write_U32(0x60000000, 0x800FAE90);
+              ppc_state.iCache.Invalidate(memory, jit_interface, 0x800FAE90);
+            }
+          }
+          break;
+          // No command just prints the text
+          default:
+            /*
+              Remap text
+            */
+            memset(mtext, 0, sizeof(mtext));
+
+            for (u32 i = 0; i < strlen((char*)(m_SI_buf + 4)) - 1; ++i)
+            {
+              mtext[i] = character_display_code[m_SI_buf[i + 4]];
+            }
+#ifdef _WIN32
+            INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Text: {}", TStrToUTF8(mtext));
+#endif
+            // WARN_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI1: MDC: Unhandled Command {:02x}",
+            // m_SI_buf[4]);
+            break;
+          }
+
+          g_write_size = 0;
+          g_write_mode = 0;
+          m_tx_data = 0;
+          m_SI_offset = 0;
+          memset(m_SI_buf, 0, sizeof(m_SI_buf));
+        }
+      }
+      return;
+    }
+
+    // Device on SI0
+    if (m_SI_buf[0] == 2 && m_SI_buf[1] == 3)
+    {
+      // Size is in byte 4
+      if (m_SI_offset >= 4)
+      {
+        // Check for full packet
+        if (m_SI_offset >= m_SI_buf[3] + 5)
+        {
+          INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: UNK3: {:02x}", m_SI_buf[4]);
+
+          g_write_size = 0;
+          g_write_mode = 0;
+          m_tx_data = 0;
+          m_SI_offset = 0;
+          memset(m_SI_buf, 0, sizeof(m_SI_buf));
+        }
+      }
+      return;
+    }
+
+    if (m_SI_buf[0] == 2 && m_SI_buf[1] == 4)
+    {
+      if (m_SI_offset >= 5)
+      {
+        INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: UNK4: {:02x}", m_SI_buf[4]);
+
+        InterruptSet(RVA_IRQ_S0_RX);
+        SetReply(SerialReplies::SerialVersion, sizeof(SI0_reply_version));
+
+        g_write_size = 0;
+        g_write_mode = 0;
+        m_tx_data = 0;
+        m_SI_offset = 0;
+        memset(m_SI_buf, 0, sizeof(m_SI_buf));
+      }
+      return;
+    }
+
+    // ?
+    if (m_SI_buf[0] == 2 && m_SI_buf[1] == 6)
+    {
+      // Size is in byte 4
+      if (m_SI_offset >= 4)
+      {
+        // Check for full packet
+        if (m_SI_offset == m_SI_buf[3] + 5)
+        {
+          INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI0: UNK6: {:02x}", m_SI_buf[2]);
+
+          InterruptSet(RVA_IRQ_S0_RX);
+          SetReply(SerialReplies::Serial_6, sizeof(SI0_reply_6));
+
+          g_write_size = 0;
+          g_write_mode = 0;
+          m_tx_data = 0;
+          m_SI_offset = 0;
+          memset(m_SI_buf, 0, sizeof(m_SI_buf));
+        }
+      }
+      return;
+    }
+
+    // AMO board CMD:
+    if (m_SI_buf[0] == 0x2F && m_SI_offset == 7)
+    {
+      // replace new lines for nicer print
+      for (u32 i = 0; m_SI_buf[i] != 3; ++i)
+      {
+        if (m_SI_buf[i] == '\n')
+          m_SI_buf[i] = ' ';
+      }
+
+      m_SI_buf[6] = 0;
+
+      NOTICE_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: AMO: {}", (char*)m_SI_buf);
+
+      switch (m_SI_buf[1])
+      {
+      case 's':
+        SetReply(SerialReplies::AMOServices, sizeof(AMO_reply_se));
+        break;
+      case 'v':
+        switch (g_game_type)
+        {
+        default:
+        case GameType::MarioPartyFKC2Server:
+          SetReply(SerialReplies::AMOVersionServer, sizeof(AMO_reply_version));
+          break;
+        case GameType::MarioPartyFKC2Client:
+          SetReply(SerialReplies::AMOVersionClient, sizeof(AMO_reply_client_version));
+          break;
+        }
+
+        break;
+      case 'i':
+        SetReply(SerialReplies::AMOInfo, sizeof(AMO_reply_ie));
+        break;
+      default:
+        WARN_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: AMO: Unhandled Command {:02x}", m_SI_buf[1]);
+        break;
+      }
+
+      if (m_rx_count)
+      {
+        if (address == RVAMemoryMap::SI_0_TXD)
+        {
+          InterruptSet(RVA_IRQ_S0_RX);
+        }
+        else
+        {
+          InterruptSet(RVA_IRQ_S1_RX);
+        }
+      }
+
+      // Hack: Fixes OSSleepThread bug in Mario Party F.K.C 2
+      if (memory.Read_U32(0x800FAE90) == 0x48000011)
+      {
+        memory.Write_U32(0x60000000, 0x800FAE90);
+        ppc_state.iCache.Invalidate(memory, jit_interface, 0x800FAE90);
+      }
+
+      g_write_mode = 0;
+      m_tx_data = 0;
+      m_SI_offset = 0;
+      memset(m_SI_buf, 0, sizeof(m_SI_buf));
+      return;
+    }
+
+    // Device on SI0/1
+    // First part of the command has the size
+    if (m_SI_buf[0] == 2 && m_SI_offset == 5)
+    {
+      // Size is in bytes 2 and 3 as ASCII
+      sscanf((char*)m_SI_buf + 1, "%02X", &g_write_size);
+      g_write_mode = 0;
+      m_rx_count = 0;
+      return;
+    }
+
+    // If size is larger than 8 bytes it is split in three parts
+    if (g_write_size > 8)
+    {
+      if (m_SI_offset == g_write_size - 3)
+      {
+        g_write_mode = 0;
+        return;
+      }
+    }
+
+    // 2nd part completed
+    if (m_SI_buf[0] == 2 && m_SI_offset == g_write_size)
+      if (m_SI_buf[g_write_size - 1] == 3)
+      {
+        INFO_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: MPSI: {}", (char*)(m_SI_buf + 1));
+
+        switch (MarioPartySerialCommand(*(u16*)(m_SI_buf + 3)))
+        {
+        // Send a fake reply to test if a reply is read
+        default:
+          WARN_LOG_FMT(EXPANSIONINTERFACE, "EXI-SI: MPSI: Unhandled Command {:02x}{:02x}",
+                       m_SI_buf[3], m_SI_buf[4]);
+        case MarioPartySerialCommand::Version:
+        case MarioPartySerialCommand::Reset:
+
+          version_check_reply[3] = m_SI_buf[3];
+          version_check_reply[4] = m_SI_buf[4];
+
+          m_rx_count = sizeof(version_check_reply);
+          m_rx_type = SerialReplies::MPSIVersion;
+
+          // Checksum is ASCII
+          version_check_reply[9] = 0;
+          version_check_reply[10] = 0;
+          sprintf((char*)version_check_reply + 9, "%02X",
+                  CheckSum(version_check_reply, sizeof(version_check_reply)));
+
+          // End byte
+          version_check_reply[11] = 3;
+
+          break;
+        case MarioPartySerialCommand::Status:
+          SetReply(SerialReplies::MPSIStatus, sizeof(board_status_reply));
+          break;
+        case MarioPartySerialCommand::Update:
+          SetReply(SerialReplies::MPSIUpdate, sizeof(update_info_reply));
+          break;
+        case MarioPartySerialCommand::Config:
+          SetReply(SerialReplies::MPSIConfig, sizeof(ConfigReply));
+          break;
+        case MarioPartySerialCommand::SS:
+          SetReply(SerialReplies::SS, sizeof(SSReply));
+          break;
+        // No reply
+        case MarioPartySerialCommand::Error:
+        case MarioPartySerialCommand::MI:
+        case MarioPartySerialCommand::MO:
+        case MarioPartySerialCommand::PM:
+        case MarioPartySerialCommand::BI:
+        case MarioPartySerialCommand::BO:
+        case MarioPartySerialCommand::OT:
+        case MarioPartySerialCommand::CI:
+        case MarioPartySerialCommand::WM:
+        case MarioPartySerialCommand::BJ:
+        case MarioPartySerialCommand::CU:
+        case MarioPartySerialCommand::SU:
+        case MarioPartySerialCommand::HP:
+        case MarioPartySerialCommand::PU:
+        case MarioPartySerialCommand::MT:
+        case MarioPartySerialCommand::LR:
+          m_rx_count = 0;
+          break;
+        }
+
+        if (m_rx_count)
+        {
+          if (address == RVAMemoryMap::SI_0_TXD)
+          {
+            InterruptSet(RVA_IRQ_S0_RX);
+          }
+          else
+          {
+            InterruptSet(RVA_IRQ_S1_RX);
+          }
+          m_rx_offset = 0;
+        }
+
+        g_write_size = 0;
+        g_write_mode = 0;
+
+        m_SI_offset = 0;
+        memset(m_SI_buf, 0, sizeof(m_SI_buf));
+      }
+  }
+}
+
+CEXIRVA::CEXIRVA(Core::System& system) : IEXIDevice(system), m_JVS(), m_SI0(), m_SI1()
+{
+  g_write_mode = 0;
+  g_write_size = 0;
+
+  g_IRQ_delay = 0;
+  g_IRQ_type = RVAIRQMasks::RVA_IRQ_MASK;
+  g_have_IRQ = false;
+
+  g_game_type = GameType::Unknown;
+
   m_watch_dog_timer = 0;
   m_SRAM_offset = 0;
-  g_have_irq = false;
-  g_irq_delay = 0;
-  g_irq_type = 0;
-  g_exi_write_mode = 0;
-  g_game_type = GameType::Unknown;
 
   /*
     Mario Party F.K.C 2's server and client have the same title ID.
@@ -1240,15 +1209,15 @@ CEXIRVA::CEXIRVA(Core::System& system) : IEXIDevice(system), m_jvs(), m_si0(), m
   const IOS::ES::TMDReader tmd_mp8 = ios.GetESCore().FindInstalledTMD(0x00015000344D504ALL);
   if (tmd_mp8.IsValid())
   {
-    if (memcmp(tmd_mp8.GetSha1().data(), Mario_Party_FKC_2_Server_1302141211, 16) == 0)
+    if (memcmp(tmd_mp8.GetSha1().data(), mario_party_FKC_2_server_1302141211, 16) == 0)
     {
       g_game_type = GameType::MarioPartyFKC2Server;
     }
-    else if (memcmp(tmd_mp8.GetSha1().data(), Mario_Party_FKC_2_Client_1301080914, 16) == 0)
+    else if (memcmp(tmd_mp8.GetSha1().data(), mario_party_FKC_2_client_1301080914, 16) == 0)
     {
       g_game_type = GameType::MarioPartyFKC2Client;
     }
-    else if (memcmp(tmd_mp8.GetSha1().data(), Mario_Party_FKC_2_Client_1302141156, 16) == 0)
+    else if (memcmp(tmd_mp8.GetSha1().data(), mario_party_FKC_2_client_1302141156, 16) == 0)
     {
       g_game_type = GameType::MarioPartyFKC2Client;
     }
@@ -1263,7 +1232,7 @@ CEXIRVA::CEXIRVA(Core::System& system) : IEXIDevice(system), m_jvs(), m_si0(), m
     const IOS::ES::TMDReader tmd_tvsc = ios.GetESCore().FindInstalledTMD(0x0001500052564130LL);
     if (tmd_tvsc.IsValid())
     {
-      if (memcmp(tmd_tvsc.GetSha1().data(), Tatsunoko_VS_Capcom_0811051625, 16) == 0)
+      if (memcmp(tmd_tvsc.GetSha1().data(), tatsunoko_VS_capcom_0811051625, 16) == 0)
       {
         g_game_type = GameType::TatsunokoVSCapcom;
       }
@@ -1326,7 +1295,7 @@ CEXIRVA::CEXIRVA(Core::System& system) : IEXIDevice(system), m_jvs(), m_si0(), m
     return;
   }
 
-  // Setup new file
+  // Setup new file for Mario Party games
   if (m_SRAM->GetSize() == 0)
   {
     u8* data = new u8[m_SRAM_size];
@@ -1370,7 +1339,7 @@ void CEXIRVA::ImmWrite(u32 data, u32 size)
   auto& ppc_state = system.GetPPCState();
   auto& jit_interface = system.GetJitInterface();
 
-  DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: ImmWrite: {:08x} {}", data, size);
+  INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA: ImmWrite: {:08x} {}", data, size);
 
   if (RVAMemoryMap(data & 0x7F000000) == RVAMemoryMap::SRAM_SET_OFFSET)
   {
@@ -1387,13 +1356,13 @@ void CEXIRVA::ImmWrite(u32 data, u32 size)
     return;
   }
 
-  if (!g_exi_write_mode)
+  if (!g_write_mode)
   {
     m_address = RVAMemoryMap((data & ~0x80000000) >> 6);
 
     if (data & 0x80000000)
     {
-      g_exi_write_mode = 1;
+      g_write_mode = 1;
       return;
     }
   }
@@ -1448,16 +1417,16 @@ void CEXIRVA::ImmWrite(u32 data, u32 size)
   case RVAMemoryMap::WATCH_DOG:
     m_watch_dog_timer = Common::swap32(data);
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: Watchdog Timer: {:02x}", m_watch_dog_timer);
-    g_exi_write_mode = 0;
+    g_write_mode = 0;
     return;
 
   case RVAMemoryMap::JVS_IO_SI_0_1_CSR:
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA-IRQ(W): {:02x}", data);
-    g_exi_write_mode = 0;
+    g_write_mode = 0;
     return;
 
-  case RVAMemoryMap::JVS_Switches:
-    m_jvs.Write(m_address, data);
+  case RVAMemoryMap::JVS_SWITCHES:
+    m_JVS.Write(m_address, data);
     return;
 
   case RVAMemoryMap::JVS_IO_CSR:
@@ -1467,7 +1436,7 @@ void CEXIRVA::ImmWrite(u32 data, u32 size)
   case RVAMemoryMap::JVS_IO_TX_LEN:
   case RVAMemoryMap::JVS_IO_RX_LEN:
   case RVAMemoryMap::JVS_IO_DCSR:
-    m_jvs.Write(m_address, data);
+    m_JVS.Write(m_address, data);
     return;
 
   case RVAMemoryMap::SI_0_CSR:
@@ -1476,7 +1445,7 @@ void CEXIRVA::ImmWrite(u32 data, u32 size)
   case RVAMemoryMap::SI_0_RX_CNT:
   case RVAMemoryMap::SI_0_TX_RAT:
   case RVAMemoryMap::SI_0_RX_RAT:
-    m_si0.Write(m_address, data);
+    m_SI0.Write(m_address, data);
     return;
 
   case RVAMemoryMap::SI_1_CSR:
@@ -1485,7 +1454,7 @@ void CEXIRVA::ImmWrite(u32 data, u32 size)
   case RVAMemoryMap::SI_1_RX_CNT:
   case RVAMemoryMap::SI_1_TX_RAT:
   case RVAMemoryMap::SI_1_RX_RAT:
-    m_si1.Write(m_address, data);
+    m_SI1.Write(m_address, data);
     return;
 
   default:
@@ -1499,26 +1468,24 @@ u32 CEXIRVA::ImmRead(u32 size)
 {
   u32 data = 0;
 
-  // ID
-  if (m_address == RVAMemoryMap::JVS_ID)
-  {
-    data = 0;
-  }
-
   switch (m_address)
   {
+  case RVAMemoryMap::JVS_ID:
+    data = Common::swap32(EXI_DEVTYPE_RVA);
+    break;
+
   case RVAMemoryMap::WATCH_DOG:
     data = Common::swap32(m_watch_dog_timer);
     break;
 
   case RVAMemoryMap::JVS_IO_SI_0_1_CSR:
-    data = (u32)g_irq_type;
+    data = (u32)g_IRQ_type;
     DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: IRQ Status:{:08x}", data);
     data = Common::swap32(data);
     break;
 
-  case RVAMemoryMap::JVS_Switches:
-    data = m_jvs.Read(m_address, size);
+  case RVAMemoryMap::JVS_SWITCHES:
+    data = m_JVS.Read(m_address, size);
     break;
 
   case RVAMemoryMap::JVS_IO_CSR:
@@ -1528,7 +1495,7 @@ u32 CEXIRVA::ImmRead(u32 size)
   case RVAMemoryMap::JVS_IO_TX_LEN:
   case RVAMemoryMap::JVS_IO_RX_LEN:
   case RVAMemoryMap::JVS_IO_DCSR:
-    data = Common::swap32(m_jvs.Read(m_address, size));
+    data = Common::swap32(m_JVS.Read(m_address, size));
     break;
 
   case RVAMemoryMap::SI_0_CSR:
@@ -1537,7 +1504,7 @@ u32 CEXIRVA::ImmRead(u32 size)
   case RVAMemoryMap::SI_0_RX_CNT:
   case RVAMemoryMap::SI_0_TX_RAT:
   case RVAMemoryMap::SI_0_RX_RAT:
-    data = Common::swap32(m_si0.Read(m_address, size));
+    data = Common::swap32(m_SI0.Read(m_address, size));
     break;
 
   case RVAMemoryMap::SI_1_CSR:
@@ -1546,7 +1513,7 @@ u32 CEXIRVA::ImmRead(u32 size)
   case RVAMemoryMap::SI_1_RX_CNT:
   case RVAMemoryMap::SI_1_TX_RAT:
   case RVAMemoryMap::SI_1_RX_RAT:
-    data = Common::swap32(m_si1.Read(m_address, size));
+    data = Common::swap32(m_SI1.Read(m_address, size));
     break;
 
   default:
@@ -1555,7 +1522,7 @@ u32 CEXIRVA::ImmRead(u32 size)
     break;
   }
 
-  DEBUG_LOG_FMT(EXPANSIONINTERFACE, "RVA: ImmRead {:08x} {:08x}  {}", (u32)m_address, data, size);
+  INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA: ImmRead {:08x} {:08x}  {}", (u32)m_address, data, size);
 
   return data;
 }
@@ -1598,11 +1565,11 @@ void CEXIRVA::DMARead(u32 address, u32 size)
 
 bool CEXIRVA::IsInterruptSet()
 {
-  if (g_have_irq)
+  if (g_have_IRQ)
   {
-    if (g_irq_delay-- == 0)
+    if (g_IRQ_delay-- == 0)
     {
-      g_have_irq = false;
+      g_have_IRQ = false;
     }
     return 1;
   }

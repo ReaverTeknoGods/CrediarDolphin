@@ -1,3 +1,5 @@
+// Copyright 2017 Dolphin Emulator Project
+// SPDX-License-Identifier: GPL-2.0-or-later
 
 #pragma once
 
@@ -80,7 +82,7 @@ private:
   enum CARDCommands
   {
     Init = 0x10,
-    GetCardState = 0x20,
+    GetState = 0x20,
     Read = 0x33,
     IsPresent = 0x40,
     Write = 0x53,
@@ -89,8 +91,8 @@ private:
     WriteInfo = 0x7C,
     Erase = 0x7D,
     Eject = 0x80,
-    CleanCard = 0xA0,
-    LoadCard = 0xB0,
+    Clean = 0xA0,
+    Load = 0xB0,
     SetShutter = 0xD0,
   };
 

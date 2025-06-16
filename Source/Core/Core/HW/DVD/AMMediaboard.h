@@ -1,6 +1,7 @@
 // Copyright 2017 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+
 #pragma once
 
 #include <memory>
@@ -85,9 +86,10 @@ enum class AMMBCommand : u16
 
   // Network used by F-Zero AX
   InitLink = 0x601,
+  Unknown_605 = 0x605,
   SetupLink = 0x606,
   SearchDevices = 0x607,
-  Unknown_614,
+  Unknown_614 = 0x614,
 
   // NETDIMM Commands
   Unknown_001 = 0x001,
@@ -104,6 +106,7 @@ enum MediaBoardAddress : u32
   NetworkBufferAddress2 = 0x1FD00000,
   NetworkBufferAddress3 = 0x89100000,
   NetworkBufferAddress4 = 0x89180000,
+  NetworkBufferAddress5 = 0x1FB00000,
 };
 
 // Mario Kart GP2 has a complete list of them
@@ -137,7 +140,7 @@ enum SocketStatusCodes
   SSC_ECONNREFUSED = 61,   // Connection request forcibly rejected
   SSC_EHOSTUNREACH = 65,   // Remote host cannot be reached
   SSC_EHOSTDOWN = 67,      // Remote host is down
-  SSC_EWOULDBLOCK = 68,    // Socket is in non-blocking mode and connection has not been completed
+  SSC_EWOULDBLOCK = 70,    // Socket is in non-blocking mode and connection has not been completed
   SSC_E_69 = 69,  // Socket is in non-blocking mode and a previously issued Connect command has not
                   // been completed
   SSC_SUCCESS = 70,
@@ -145,7 +148,7 @@ enum SocketStatusCodes
 
 void Init(void);
 void FirmwareMap(bool on);
-u8* InitDIMM(void);
+u8* InitDIMM(u32 size);
 void InitKeys(u32 KeyA, u32 KeyB, u32 KeyC);
 u32 ExecuteCommand(std::array<u32, 3>& DICMDBUF, u32 Address, u32 Length);
 u32 GetGameType(void);

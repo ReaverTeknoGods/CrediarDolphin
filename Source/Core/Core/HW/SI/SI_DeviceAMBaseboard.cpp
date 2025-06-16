@@ -1,6 +1,7 @@
 // Copyright 2017 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+
 #pragma warning(disable : 4189)
 
 #include "Core/HW/SI/SI_DeviceAMBaseboard.h"
@@ -153,10 +154,6 @@ CSIDevice_AMBaseboard::CSIDevice_AMBaseboard(Core::System& system, SIDevices dev
   {
     m_ic_card_data[0x22] = 0x44;
     m_ic_card_data[0x23] = 0x00;
-  }
-  else
-  {
-    PanicAlertFmtT("ID for this game is unknown.");
   }
 
   // Use count
@@ -345,7 +342,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                          ptr(2), ptr(3), ptr(4), ptr(5));
           u8 string[] = "\x00\x00\x30\x00"
                         //   "\x01\xfe\x00\x00"  // JAPAN
-                         "\x02\xfd\x00\x00" // USA
+                        "\x02\xfd\x00\x00"  // USA
                         // "\x03\xfc\x00\x00"  // export
                         "\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff";
           res[resp++] = 0x1f;
@@ -903,11 +900,11 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                 res[resp++] = 0x00;  // 0x02
                 res[resp++] = 0x30;  // 0x03
                 break;
-              case CARDCommands::GetCardState:
+              case CARDCommands::GetState:
                 res[resp++] = 0x20 | m_card_bit;  // 0x02
                 /*
                   bit 0: Please take your card
-                  bit 1: endless waiting casues UNK_E to be called
+                  bit 1: endless waiting causes UNK_E to be called
                 */
                 res[resp++] = 0x00;  // 0x03
                 break;
@@ -946,11 +943,11 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                 }
                 res[resp++] = 0x30;  // 0x03
                 break;
-              case CARDCommands::CleanCard:
+              case CARDCommands::Clean:
                 res[resp++] = 0x02;  // 0x02
                 res[resp++] = 0x00;  // 0x03
                 break;
-              case CARDCommands::LoadCard:
+              case CARDCommands::Load:
                 res[resp++] = 0x02;  // 0x02
                 res[resp++] = 0x30;  // 0x03
                 break;
@@ -983,7 +980,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
               m_card_offset += ptr(1);
 
-              // Check if we got complete CMD
+              // Check if we got a complete command
 
               if (m_card_buffer[0] == 0x02)
                 if (m_card_buffer[1] == m_card_offset - 2)
@@ -1002,28 +999,28 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       m_card_memory_size = 0;
                       m_card_state_call_count = 0;
                       break;
-                    case CARDCommands::GetCardState:
+                    case CARDCommands::GetState:
                     {
                       NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD GetState({:02X})",
                                      m_card_bit);
 
-                      // if (m_card_memory_size == 0)
-                      //{
-                      //   std::string card_filename(File::GetUserPath(D_TRIUSER_IDX) + "tricard_" +
-                      //                             SConfig::GetInstance().GetGameID().c_str() +
-                      //                             ".bin");
+                      if (m_card_memory_size == 0)
+                      {
+                        std::string card_filename(File::GetUserPath(D_TRIUSER_IDX) + "tricard_" +
+                                                  SConfig::GetInstance().GetGameID().c_str() +
+                                                  ".bin");
 
-                      //  if (File::Exists(card_filename))
-                      //  {
-                      //    File::IOFile card = File::IOFile(card_filename, "rb+");
-                      //    m_card_memory_size = (u32)card.GetSize();
+                        if (File::Exists(card_filename))
+                        {
+                          File::IOFile card = File::IOFile(card_filename, "rb+");
+                          m_card_memory_size = (u32)card.GetSize();
 
-                      //    card.ReadBytes(m_card_memory, m_card_memory_size);
-                      //    card.Close();
+                          card.ReadBytes(m_card_memory, m_card_memory_size);
+                          card.Close();
 
-                      //    m_card_is_inserted = 1;
-                      //  }
-                      //}
+                          m_card_is_inserted = 1;
+                        }
+                      }
 
                       if (AMMediaboard::GetGameType() == FZeroAX && m_card_memory_size)
                       {
@@ -1074,11 +1071,11 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     case CARDCommands::RegisterFont:
                       NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD RegisterFont");
                       break;
-                    case CARDCommands::LoadCard:
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD LoadCard");
+                    case CARDCommands::Load:
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Load");
                       break;
-                    case CARDCommands::CleanCard:
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD IsCleanCard");
+                    case CARDCommands::Clean:
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Clean");
                       m_card_clean = 1;
                       break;
                     case CARDCommands::Read:
@@ -1147,7 +1144,8 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
                       memcpy(m_card_memory, m_card_buffer + 9, m_card_memory_size);
 
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: CARDWrite: {}", m_card_memory_size);
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD Write: {}",
+                                     m_card_memory_size);
 
                       std::string card_filename(File::GetUserPath(D_TRIUSER_IDX) + "tricard_" +
                                                 SConfig::GetInstance().GetGameID().c_str() +
@@ -1163,7 +1161,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       break;
                     }
                     case CARDCommands::SetPrintParam:
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD PrintSetPara");
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD SetPrintParam");
                       break;
                     case CARDCommands::WriteInfo:
                       NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD WriteInfo");
@@ -1179,7 +1177,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                       }
                       break;
                     case CARDCommands::SetShutter:
-                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD ShutterSet");
+                      NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "GC-AM: Command CARD SetShutter");
                       if (AMMediaboard::GetGameType() != FZeroAX)
                       {
                         m_card_bit = 0;
@@ -1280,17 +1278,17 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
             case JVSIOCommands::CommandRevision:
               msg.addData(1);
               msg.addData(0x11);
-              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO: Command 11, CMDFormatRevision");
+              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO: Command 11, CommandRevision");
               break;
             case JVSIOCommands::JVRevision:
               msg.addData(1);
               msg.addData(0x20);
-              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:  Command 12, Revision");
+              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:  Command 12, JVRevision");
               break;
             case JVSIOCommands::CommunicationVersion:
               msg.addData(1);
               msg.addData(0x10);
-              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:  Command 13, COMVersion");
+              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:  Command 13, CommunicationVersion");
               break;
 
               // Slave features
@@ -1366,7 +1364,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                 msg.addData((void*)"\x00\x00\x00\x00", 4);
                 break;
               }
-              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:  Command 14, SlaveFeatures");
+              NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:  Command 14, CheckFunctionality");
               break;
             case JVSIOCommands::MainID:
               while (*jvs_io++)
@@ -1638,6 +1636,23 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     player_data[1] |= 0x02;
                 }
                 break;
+                case KeyOfAvalon:
+                {
+                  PadStatus = Pad::GetStatus(0);
+                  // Debug On
+                  if (PadStatus.button & PAD_BUTTON_START)
+                    player_data[0] |= 0x80;
+                  // Service button
+                  if (PadStatus.button & PAD_BUTTON_X)
+                    player_data[0] |= 0x40;
+                  // Switch 1
+                  if (PadStatus.button & PAD_BUTTON_A)
+                    player_data[0] |= 0x04;
+                  // Switch 2
+                  if (PadStatus.button & PAD_BUTTON_B)
+                    player_data[0] |= 0x08;
+                }
+                break;
                 }
 
                 for (int j = 0; j < player_byte_count; ++j)
@@ -1661,7 +1676,7 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                 msg.addData((m_coin[i] >> 8) & 0x3f);
                 msg.addData(m_coin[i] & 0xff);
               }
-              // NOTICE_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:Get Coins Slots:{} Unk:{}", slots, unk );
+              DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:Get Coins Slots:{}", slots);
               break;
             }
             case JVSIOCommands::AnalogInput:
