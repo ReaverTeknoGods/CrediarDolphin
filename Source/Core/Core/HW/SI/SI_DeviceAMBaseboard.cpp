@@ -1,8 +1,18 @@
 // Copyright 2017 Dolphin Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-
 #pragma warning(disable : 4189)
+
+// TEKNOPARROT SECTION
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#ifdef _WIN32
+static HANDLE g_jvs_file_mapping = nullptr;
+static void* g_jvs_view_ptr = nullptr;
+#endif
+// TEKNOPARROT SECTION ENDS
 
 #include "Core/HW/SI/SI_DeviceAMBaseboard.h"
 
@@ -194,6 +204,30 @@ CSIDevice_AMBaseboard::CSIDevice_AMBaseboard(Core::System& system, SIDevices dev
   m_fzcc_service = 0;
 
   memset(m_motorreply, 0, sizeof(m_motorreply));
+
+// Initialize JVS State memory mapping
+#ifdef _WIN32
+  if (!g_jvs_file_mapping)
+  {
+    g_jvs_file_mapping = CreateFileMappingA(INVALID_HANDLE_VALUE,  // Use paging file
+                                            nullptr,               // Default security
+                                            PAGE_READWRITE,        // Read/write access
+                                            0,   // Maximum object size (high-order DWORD)
+                                            64,  // Maximum object size (low-order DWORD) - 64 bytes
+                                            "TeknoParrot_JvsState"  // Name of mapping object
+    );
+
+    if (g_jvs_file_mapping)
+    {
+      g_jvs_view_ptr = MapViewOfFile(g_jvs_file_mapping,   // Handle to map object
+                                     FILE_MAP_ALL_ACCESS,  // Read/write permission
+                                     0,                    // High-order 32 bits of file offset
+                                     0,                    // Low-order 32 bits of file offset
+                                     64                    // Number of bytes to map
+      );
+    }
+  }
+#endif
 }
 
 constexpr u32 SI_XFER_LENGTH_MASK = 0x7f;
@@ -1382,11 +1416,53 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
 
               msg.addData(1);
 
-              GCPadStatus PadStatus;
-              PadStatus = Pad::GetStatus(0);
+              // Read digital button control from shared memory (StateView[8] - DWORD)
+              u32 control = 0;
+#ifdef _WIN32
+              if (g_jvs_view_ptr)
+              {
+                control = *reinterpret_cast<u32*>(static_cast<u8*>(g_jvs_view_ptr) + 8);
+              }
+#endif
 
-              // Test button
-              if (PadStatus.button & PAD_TRIGGER_Z)
+              /*
+              Full 32-bit DWORD mapping:
+              0x01:       Coin (shared)
+              0x02:       Player 1 Start
+              0x04:       Player 1 Button1 (Primary: Boost/Long Pass/Item/A)
+              0x08:       Player 2 Start
+              0x10:       Player 2 Button1 (Primary: Boost/Long Pass/Item/A)
+              0x20:       Player 1 Button2 (Secondary: Paddle Right/Short Pass/VS-Cancel/B)
+              0x40:       Player 1 Service
+              0x80:       Player 2 Button2 (Secondary: Paddle Right/Short Pass/VS-Cancel/B)
+              0x100:      Player 2 Service
+              0x200:      Player 1 Button3 (Tertiary: Shoot/Dash/Gekitou)
+              0x400:      Player 1 Left
+              0x800:      Player 1 Up
+              0x1000:     Player 1 Right
+              0x2000:     Player 1 Down
+              0x4000:     Player 2 Button3 (Tertiary: Shoot/Dash/Gekitou)
+              0x8000:     Player 2 Left
+              0x10000:    Player 2 Up
+              0x20000:    Player 2 Right
+              0x40000:    Player 2 Down
+              0x80000:    Player 1 Button4 (View Change 1/Tactics U)
+              0x100000:   Player 1 Button5 (View Change 2/Tactics M)
+              0x200000:   Player 1 Button6 (View Change 3/Tactics D)
+              0x400000:   Player 1 Button7 (View Change 4/IC-Card Lock)
+              0x800000:   Player 2 Button4 (View Change 1/Tactics U)
+              0x1000000:  Player 2 Button5 (View Change 2/Tactics M)
+              0x2000000:  Player 2 Button6 (View Change 3/Tactics D)
+              0x4000000:  Player 2 Button7 (View Change 4/IC-Card Lock)
+              0x8000000:  Player 1 Button8 (Paddle Left)
+              0x10000000: Player 1 Button9 (Extra)
+              0x20000000: Player 2 Button8 (Paddle Left)
+              0x40000000: Player 2 Button9 (Extra)
+              0x80000000: Reserved
+              */
+
+              // Test button - check for coin input from shared memory only
+              if (control & 0x01)
                 msg.addData(0x80);
               else
                 msg.addData((u32)0x00);
@@ -1395,11 +1471,65 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
               {
                 unsigned char player_data[3] = {0, 0, 0};
 
+                // Extract button states from shared memory based on player index
+                bool start_pressed = false;
+                bool service_pressed = false;
+                bool button1_pressed = false;  // Primary action
+                bool button2_pressed = false;  // Secondary action
+                bool button3_pressed = false;  // Tertiary action
+                bool left_pressed = false;
+                bool up_pressed = false;
+                bool right_pressed = false;
+                bool down_pressed = false;
+                bool button4_pressed = false;  // View Change 1/Tactics U
+                bool button5_pressed = false;  // View Change 2/Tactics M
+                bool button6_pressed = false;  // View Change 3/Tactics D
+                bool button7_pressed = false;  // View Change 4/IC-Card Lock
+                bool button8_pressed = false;  // Paddle Left
+                bool button9_pressed = false;  // Extra
+
+                if (i == 0)  // Player 1
+                {
+                  start_pressed = (control & 0x02) != 0;
+                  service_pressed = (control & 0x40) != 0;
+                  button1_pressed = (control & 0x04) != 0;
+                  button2_pressed = (control & 0x20) != 0;
+                  button3_pressed = (control & 0x200) != 0;
+                  left_pressed = (control & 0x400) != 0;
+                  up_pressed = (control & 0x800) != 0;
+                  right_pressed = (control & 0x1000) != 0;
+                  down_pressed = (control & 0x2000) != 0;
+                  button4_pressed = (control & 0x80000) != 0;
+                  button5_pressed = (control & 0x100000) != 0;
+                  button6_pressed = (control & 0x200000) != 0;
+                  button7_pressed = (control & 0x400000) != 0;
+                  button8_pressed = (control & 0x8000000) != 0;
+                  button9_pressed = (control & 0x10000000) != 0;
+                }
+                else if (i == 1)  // Player 2
+                {
+                  start_pressed = (control & 0x08) != 0;
+                  service_pressed = (control & 0x100) != 0;
+                  button1_pressed = (control & 0x10) != 0;
+                  button2_pressed = (control & 0x80) != 0;
+                  button3_pressed = (control & 0x4000) != 0;
+                  left_pressed = (control & 0x8000) != 0;
+                  up_pressed = (control & 0x10000) != 0;
+                  right_pressed = (control & 0x20000) != 0;
+                  down_pressed = (control & 0x40000) != 0;
+                  button4_pressed = (control & 0x800000) != 0;
+                  button5_pressed = (control & 0x1000000) != 0;
+                  button6_pressed = (control & 0x2000000) != 0;
+                  button7_pressed = (control & 0x4000000) != 0;
+                  button8_pressed = (control & 0x20000000) != 0;
+                  button9_pressed = (control & 0x40000000) != 0;
+                }
+                // Player 3+ would need additional DWORD or different mapping
+
                 switch (AMMediaboard::GetGameType())
                 {
                 // Controller configuration for F-Zero AX (DX)
                 case FZeroAX:
-                  PadStatus = Pad::GetStatus(0);
                   if (i == 0)
                   {
                     if (m_fzdx_seatbelt)
@@ -1408,35 +1538,35 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     }
 
                     // Start
-                    if (PadStatus.button & PAD_BUTTON_START)
+                    if (start_pressed)
                       player_data[0] |= 0x80;
                     // Service button
-                    if (PadStatus.button & PAD_BUTTON_X)
+                    if (service_pressed)
                       player_data[0] |= 0x40;
                     // Boost
-                    if (PadStatus.button & PAD_BUTTON_Y)
+                    if (button1_pressed)
                       player_data[0] |= 0x02;
                     // View Change 1
-                    if (PadStatus.button & PAD_BUTTON_RIGHT)
+                    if (button4_pressed)
                       player_data[0] |= 0x20;
                     // View Change 2
-                    if (PadStatus.button & PAD_BUTTON_LEFT)
+                    if (button5_pressed)
                       player_data[0] |= 0x10;
                     // View Change 3
-                    if (PadStatus.button & PAD_BUTTON_UP)
+                    if (button6_pressed)
                       player_data[0] |= 0x08;
                     // View Change 4
-                    if (PadStatus.button & PAD_BUTTON_DOWN)
+                    if (button7_pressed)
                       player_data[0] |= 0x04;
                     player_data[1] = RXReply & 0xF0;
                   }
                   else if (i == 1)
                   {
-                    //  Paddle left
-                    if (PadStatus.button & PAD_BUTTON_A)
+                    // Paddle left
+                    if (button8_pressed)
                       player_data[0] |= 0x20;
-                    //  Paddle right
-                    if (PadStatus.button & PAD_BUTTON_B)
+                    // Paddle right
+                    if (button2_pressed)
                       player_data[0] |= 0x10;
 
                     if (m_fzdx_motion_stop)
@@ -1457,7 +1587,6 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                   break;
                 // Controller configuration for F-Zero AX MonsterRide
                 case FZeroAXMonster:
-                  PadStatus = Pad::GetStatus(0);
                   if (i == 0)
                   {
                     if (m_fzcc_sensor)
@@ -1466,36 +1595,36 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     }
 
                     // Start
-                    if (PadStatus.button & PAD_BUTTON_START)
+                    if (start_pressed)
                       player_data[0] |= 0x80;
                     // Service button
-                    if (PadStatus.button & PAD_BUTTON_X)
+                    if (service_pressed)
                       player_data[0] |= 0x40;
                     // Boost
-                    if (PadStatus.button & PAD_BUTTON_Y)
+                    if (button1_pressed)
                       player_data[0] |= 0x02;
                     // View Change 1
-                    if (PadStatus.button & PAD_BUTTON_RIGHT)
+                    if (button4_pressed)
                       player_data[0] |= 0x20;
                     // View Change 2
-                    if (PadStatus.button & PAD_BUTTON_LEFT)
+                    if (button5_pressed)
                       player_data[0] |= 0x10;
                     // View Change 3
-                    if (PadStatus.button & PAD_BUTTON_UP)
+                    if (button6_pressed)
                       player_data[0] |= 0x08;
                     // View Change 4
-                    if (PadStatus.button & PAD_BUTTON_DOWN)
+                    if (button7_pressed)
                       player_data[0] |= 0x04;
 
                     player_data[1] = RXReply & 0xF0;
                   }
                   else if (i == 1)
                   {
-                    //  Paddle left
-                    if (PadStatus.button & PAD_BUTTON_A)
+                    // Paddle left
+                    if (button8_pressed)
                       player_data[0] |= 0x20;
-                    //  Paddle right
-                    if (PadStatus.button & PAD_BUTTON_B)
+                    // Paddle right
+                    if (button2_pressed)
                       player_data[0] |= 0x10;
 
                     if (m_fzcc_seatbelt)
@@ -1514,65 +1643,63 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                   break;
                 // Controller configuration for Virtua Striker 3 games
                 case VirtuaStriker3:
-                  PadStatus = Pad::GetStatus(i);
                   // Start
-                  if (PadStatus.button & PAD_BUTTON_START)
+                  if (start_pressed)
                     player_data[0] |= 0x80;
                   // Service button
-                  if (PadStatus.button & PAD_BUTTON_X)
+                  if (service_pressed)
                     player_data[0] |= 0x40;
                   // Long Pass
-                  if (PadStatus.button & PAD_TRIGGER_L)
+                  if (button1_pressed)
                     player_data[0] |= 0x01;
                   // Short Pass
-                  if (PadStatus.button & PAD_TRIGGER_R)
+                  if (button2_pressed)
                     player_data[1] |= 0x80;
                   // Shoot
-                  if (PadStatus.button & PAD_BUTTON_A)
+                  if (button3_pressed)
                     player_data[0] |= 0x02;
                   // Left
-                  if (PadStatus.button & PAD_BUTTON_LEFT)
+                  if (left_pressed)
                     player_data[0] |= 0x08;
                   // Up
-                  if (PadStatus.button & PAD_BUTTON_UP)
+                  if (up_pressed)
                     player_data[0] |= 0x20;
                   // Right
-                  if (PadStatus.button & PAD_BUTTON_RIGHT)
+                  if (right_pressed)
                     player_data[0] |= 0x04;
                   // Down
-                  if (PadStatus.button & PAD_BUTTON_DOWN)
+                  if (down_pressed)
                     player_data[0] |= 0x10;
                   break;
                 // Controller configuration for Virtua Striker 4 games
                 case VirtuaStriker4:
                 {
-                  PadStatus = Pad::GetStatus(i);
                   // Start
-                  if (PadStatus.button & PAD_BUTTON_START)
+                  if (start_pressed)
                     player_data[0] |= 0x80;
                   // Service button
-                  if (PadStatus.button & PAD_BUTTON_X)
+                  if (service_pressed)
                     player_data[0] |= 0x40;
                   // Long Pass
-                  if (PadStatus.button & PAD_TRIGGER_L)
+                  if (button1_pressed)
                     player_data[0] |= 0x01;
                   // Short Pass
-                  if (PadStatus.button & PAD_TRIGGER_R)
+                  if (button2_pressed)
                     player_data[0] |= 0x02;
                   // Shoot
-                  if (PadStatus.button & PAD_BUTTON_A)
+                  if (button3_pressed)
                     player_data[1] |= 0x80;
                   // Dash
-                  if (PadStatus.button & PAD_BUTTON_B)
+                  if (button9_pressed)  // Using button9 for Dash
                     player_data[1] |= 0x40;
                   // Tactics (U)
-                  if (PadStatus.button & PAD_BUTTON_LEFT)
+                  if (button4_pressed)
                     player_data[0] |= 0x20;
                   // Tactics (M)
-                  if (PadStatus.button & PAD_BUTTON_UP)
+                  if (button5_pressed)
                     player_data[0] |= 0x08;
                   // Tactics (D)
-                  if (PadStatus.button & PAD_BUTTON_RIGHT)
+                  if (button6_pressed)
                     player_data[0] |= 0x04;
 
                   if (i == 0)
@@ -1580,40 +1707,39 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                     player_data[0] |= 0x10;  // IC-Card Switch ON
 
                     // IC-Card Lock
-                    if (PadStatus.button & PAD_BUTTON_DOWN)
+                    if (button7_pressed)
                       player_data[1] |= 0x20;
                   }
                 }
                 break;
                 // Controller configuration for Gekitou Pro Yakyuu
                 case GekitouProYakyuu:
-                  PadStatus = Pad::GetStatus(i);
                   // Start
-                  if (PadStatus.button & PAD_BUTTON_START)
+                  if (start_pressed)
                     player_data[0] |= 0x80;
                   // Service button
-                  if (PadStatus.button & PAD_BUTTON_X)
+                  if (service_pressed)
                     player_data[0] |= 0x40;
-                  //  A
-                  if (PadStatus.button & PAD_BUTTON_B)
+                  // A
+                  if (button1_pressed)
                     player_data[0] |= 0x01;
-                  //  B
-                  if (PadStatus.button & PAD_BUTTON_A)
+                  // B
+                  if (button2_pressed)
                     player_data[0] |= 0x02;
-                  //  Gekitou
-                  if (PadStatus.button & PAD_TRIGGER_L)
+                  // Gekitou
+                  if (button3_pressed)
                     player_data[1] |= 0x80;
                   // Left
-                  if (PadStatus.button & PAD_BUTTON_LEFT)
+                  if (left_pressed)
                     player_data[0] |= 0x08;
                   // Up
-                  if (PadStatus.button & PAD_BUTTON_UP)
+                  if (up_pressed)
                     player_data[0] |= 0x20;
                   // Right
-                  if (PadStatus.button & PAD_BUTTON_RIGHT)
+                  if (right_pressed)
                     player_data[0] |= 0x04;
                   // Down
-                  if (PadStatus.button & PAD_BUTTON_DOWN)
+                  if (down_pressed)
                     player_data[0] |= 0x10;
                   break;
                 // Controller configuration for Mario Kart and other games
@@ -1621,36 +1747,18 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
                 case MarioKartGP:
                 case MarioKartGP2:
                 {
-                  PadStatus = Pad::GetStatus(0);
                   // Start
-                  if (PadStatus.button & PAD_BUTTON_START)
+                  if (start_pressed)
                     player_data[0] |= 0x80;
                   // Service button
-                  if (PadStatus.button & PAD_BUTTON_X)
+                  if (service_pressed)
                     player_data[0] |= 0x40;
                   // Item button
-                  if (PadStatus.button & PAD_BUTTON_A)
+                  if (button1_pressed)
                     player_data[1] |= 0x20;
                   // VS-Cancel button
-                  if (PadStatus.button & PAD_BUTTON_B)
+                  if (button2_pressed)
                     player_data[1] |= 0x02;
-                }
-                break;
-                case KeyOfAvalon:
-                {
-                  PadStatus = Pad::GetStatus(0);
-                  // Debug On
-                  if (PadStatus.button & PAD_BUTTON_START)
-                    player_data[0] |= 0x80;
-                  // Service button
-                  if (PadStatus.button & PAD_BUTTON_X)
-                    player_data[0] |= 0x40;
-                  // Switch 1
-                  if (PadStatus.button & PAD_BUTTON_A)
-                    player_data[0] |= 0x04;
-                  // Switch 2
-                  if (PadStatus.button & PAD_BUTTON_B)
-                    player_data[0] |= 0x08;
                 }
                 break;
                 }
@@ -1664,19 +1772,34 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
             {
               int slots = *jvs_io++;
               msg.addData(1);
+
+              // Read coin button state from shared memory (StateView[32] - separate coin offset)
+              u32 coin_state = 0;
+#ifdef _WIN32
+              if (g_jvs_view_ptr)
+              {
+                coin_state = *reinterpret_cast<u32*>(static_cast<u8*>(g_jvs_view_ptr) + 32);
+              }
+#endif
+              // Check coin button state from shared memory (direct value, not bit flag)
+              bool coin_pressed_now = (coin_state != 0);
+
               for (int i = 0; i < slots; i++)
               {
-                GCPadStatus PadStatus;
-                PadStatus = Pad::GetStatus(i);
-                if ((PadStatus.button & PAD_TRIGGER_Z) && !m_coin_pressed[i])
+                // Increment coin counter on rising edge (when coin button goes from not pressed to
+                // pressed) For multiple slots, we use the same coin input for all slots
+                if (coin_pressed_now && !g_coin_pressed_prev)
                 {
                   m_coin[i]++;
                 }
-                m_coin_pressed[i] = PadStatus.button & PAD_TRIGGER_Z;
+
                 msg.addData((m_coin[i] >> 8) & 0x3f);
                 msg.addData(m_coin[i] & 0xff);
               }
-              DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:Get Coins Slots:{}", slots);
+
+              // Update previous state for next frame
+              g_coin_pressed_prev = coin_pressed_now;
+
               break;
             }
             case JVSIOCommands::AnalogInput:
@@ -1687,7 +1810,38 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
               GCPadStatus PadStatus;
               GCPadStatus PadStatus2;
               PadStatus = Pad::GetStatus(0);
+              auto gameType = AMMediaboard::GetGameType();
+              if (gameType == VirtuaStriker3 || gameType == VirtuaStriker4)
+              {
+                PadStatus2 = Pad::GetStatus(1);
+              }
 
+              // Override with values from shared memory if available
+#ifdef _WIN32
+              if (g_jvs_view_ptr)
+              {
+                if (gameType == VirtuaStriker3 || gameType == VirtuaStriker4)
+                {
+                  PadStatus.stickY = static_cast<u8*>(g_jvs_view_ptr)[12];   // StateView[12]
+                  PadStatus.stickX = static_cast<u8*>(g_jvs_view_ptr)[13];   // StateView[13]
+                  PadStatus2.stickY = static_cast<u8*>(g_jvs_view_ptr)[14];  // StateView[14]
+                  PadStatus2.stickX = static_cast<u8*>(g_jvs_view_ptr)[15];  // StateView[15]
+                }
+                if (gameType == MarioKartGP || gameType == MarioKartGP2)
+                {
+                  PadStatus.stickX = static_cast<u8*>(g_jvs_view_ptr)[12];        // StateView[12]
+                  PadStatus.triggerRight = static_cast<u8*>(g_jvs_view_ptr)[14];  // StateView[12]
+                  PadStatus.triggerLeft = static_cast<u8*>(g_jvs_view_ptr)[15];   // StateView[13]
+                }
+                if (gameType == FZeroAX || gameType == FZeroAXMonster)
+                {
+                  PadStatus.stickX = static_cast<u8*>(g_jvs_view_ptr)[12];        // StateView[12]
+                  PadStatus.stickY = static_cast<u8*>(g_jvs_view_ptr)[13];        // StateView[13]
+                  PadStatus.triggerRight = static_cast<u8*>(g_jvs_view_ptr)[14];  // StateView[12]
+                  PadStatus.triggerLeft = static_cast<u8*>(g_jvs_view_ptr)[15];   // StateView[13]
+                }
+              }
+#endif
               DEBUG_LOG_FMT(AMBASEBOARDDEBUG, "JVS-IO:Get Analog Inputs Analogs:{}", analogs);
 
               switch (AMMediaboard::GetGameType())
@@ -1743,8 +1897,6 @@ int CSIDevice_AMBaseboard::RunBuffer(u8* _pBuffer, int request_length)
               case VirtuaStriker3:
               case VirtuaStriker4:
               {
-                PadStatus2 = Pad::GetStatus(1);
-
                 msg.addData(PadStatus.stickX);
                 msg.addData((u8)0);
                 msg.addData(PadStatus.stickY);

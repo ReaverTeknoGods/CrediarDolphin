@@ -232,6 +232,8 @@ enum class GameType
   TatsunokoVSCapcom,
 };
 
+extern bool g_coin_pressed_prev_wii;
+
 // "JAMMA Video Standard" I/O
 class JVSIOMessage
 {

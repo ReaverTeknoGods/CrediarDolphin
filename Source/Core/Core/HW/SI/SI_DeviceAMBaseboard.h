@@ -174,6 +174,10 @@ private:
   u32 m_fzcc_emergency;
   u32 m_fzcc_service;
 
+  #ifdef _WIN32
+  bool g_coin_pressed_prev;
+  #endif
+
   void ICCardSendReply(ICCommand* iccommand, u8* buffer, u32* length);
 
 public:

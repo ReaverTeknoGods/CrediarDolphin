@@ -30,28 +30,35 @@
 #include "Core/PowerPC/PowerPC.h"
 #include "Core/System.h"
 
+// Teknoparrot Control stuff
+#ifdef _WIN32
+static HANDLE g_jvs_file_mapping = nullptr;
+static void* g_jvs_view_ptr = nullptr;
+#endif
+
 namespace ExpansionInterface
 {
 
+bool g_coin_pressed_prev_wii = false;
 // clang-format off
 static const wchar_t character_display_code[] =
-{                                       /*0x04                    0x08                       0x0C*/					
+{                                       /*0x04                    0x08                       0x0C*/
 /* 0x00 */	L' ', L' ', L' ', L' ',	    L' ', L' ', L' ', L' ',	  L' ', L' ', L' ', L' ',	  L' ', L' ', L' ', L' ', /* 0x00 Display Commands */
-/* 0x10 */	L' ', L' ',  ' ', L' ',		  L' ', L' ', L' ', L' ',	  L' ', L' ', L' ', L' ',	  L' ', L' ', L' ', L' ',	/* 0x10 Display Commands */	
-/* 0x20 */	L'　', L'!', L'\"',L'#',		  L'$', L'%', L'&', L'\'',  L'(', L')', L'*', L'+',		L',', L'-', L'.', L'/', /* 0x20 */	
-/* 0x30 */	L'0', L'1', L'2', L'3',			L'4', L'5', L'6', L'7',		L'8', L'9', L':', L';',   L'<', L'=', L'>', L'?',	/* 0x30 */	
-/* 0x40 */	L'@', L'A', L'B', L'C',	    L'D', L'E', L'F', L'G',	  L'H', L'I', L'J', L'K',	  L'L', L'M', L'N', L'O',	/* 0x40 */	
-/* 0x50 */	L'P', L'Q', L'R', L'S', 	  L'T', L'U', L'V', L'W',	  L'X', L'Y', L'Z', L'[', 	L'Y', L']', L'^', L'_',	/* 0x50 */	
-/* 0x60 */	L'`',L'a', L'b', L'c',	    L'd', L'e', L'f', L'g',	  L'h', L'i', L'j', L'k',	  L'L', L'm', L'n', L'o',	/* 0x60 */	
-/* 0x70 */	L'p', L'q', L'r', L's', 	  L't', L'u', L'v', L'w',	  L'x', L'y', L'z', L'{',   L'|', L'}', L'?', L'?', /* 0x70 */	
-/* 0x80 */	L'α', L'β', L'γ', L'?',     L'?', L'?', L'?', L'?',   L'µ', L'?', L'?', L'?',   L'?', L'?', L'?', L'?', /* 0x80 */	
-/* 0x90 */	L'?', L'?', L'?', L'?',     L'?', L'?', L'?', L'?',   L'²', L'?', L'?', L'?',   L'?', L'?', L'?', L'?', /* 0x90 */	
-/* 0xA0 */	L'！', L'。', L'┌', L'┘',   L'、', L'・', L'ヲ', L'ァ', L'ィ', L'ゥ',L'ェ',L'ォ',   L'ャ', L'ュ', L'ョ', L'ツ', /* 0xA0 */	
-/* 0xB0 */	L'ー', L'ア',L'イ',L'ウ',    L'エ', L'オ',L'カ',L'キ',   L'ク', L'ケ', L'コ', L'サ',L'シ',L'ス',L'セ', L'ソ',  /* 0xB0 */	
-/* 0xC0 */	L'タ', L'チ',L'ツ',L'テ',    L'ト', L'ナ',L'二', L'ヌ',  L'ネ', L'ノ', L'ハ', L'ヒ',L'フ',L'へ',L'ホ', L'マ', /* 0xC0 */	
-/* 0xD0 */	L'ミ', L'ム',L'メ',L'モ',    L'ヤ', L'ユ',L'ヨ', L'ラ',  L'リ', L'ル', L'レ', L'ロ', L'ワ',L'ン',L'゛', L'゜',  /* 0xD0 */	
-/* 0xE0 */	L'↑', L'↓', L'?', L'?',    L'?', L'日', L'月', L'?',    L'?', L'?', L'?', L'?',    L'?', L'?', L'?', L'?', /* 0xE0 */	
-/* 0xF0 */	L'?', L'?', L'?', L'?',    L'?', L'?', L'?', L'?',    L'?', L'?', L'?', L'?',    L'?', L'?', L'?', L'?', /* 0xF0 */	
+/* 0x10 */	L' ', L' ',  ' ', L' ',		  L' ', L' ', L' ', L' ',	  L' ', L' ', L' ', L' ',	  L' ', L' ', L' ', L' ',	/* 0x10 Display Commands */
+/* 0x20 */	L'　', L'!', L'\"',L'#',		  L'$', L'%', L'&', L'\'',  L'(', L')', L'*', L'+',		L',', L'-', L'.', L'/', /* 0x20 */
+/* 0x30 */	L'0', L'1', L'2', L'3',			L'4', L'5', L'6', L'7',		L'8', L'9', L':', L';',   L'<', L'=', L'>', L'?',	/* 0x30 */
+/* 0x40 */	L'@', L'A', L'B', L'C',	    L'D', L'E', L'F', L'G',	  L'H', L'I', L'J', L'K',	  L'L', L'M', L'N', L'O',	/* 0x40 */
+/* 0x50 */	L'P', L'Q', L'R', L'S', 	  L'T', L'U', L'V', L'W',	  L'X', L'Y', L'Z', L'[', 	L'Y', L']', L'^', L'_',	/* 0x50 */
+/* 0x60 */	L'`',L'a', L'b', L'c',	    L'd', L'e', L'f', L'g',	  L'h', L'i', L'j', L'k',	  L'L', L'm', L'n', L'o',	/* 0x60 */
+/* 0x70 */	L'p', L'q', L'r', L's', 	  L't', L'u', L'v', L'w',	  L'x', L'y', L'z', L'{',   L'|', L'}', L'?', L'?', /* 0x70 */
+/* 0x80 */	L'α', L'β', L'γ', L'?',     L'?', L'?', L'?', L'?',   L'µ', L'?', L'?', L'?',   L'?', L'?', L'?', L'?', /* 0x80 */
+/* 0x90 */	L'?', L'?', L'?', L'?',     L'?', L'?', L'?', L'?',   L'²', L'?', L'?', L'?',   L'?', L'?', L'?', L'?', /* 0x90 */
+/* 0xA0 */	L'！', L'。', L'┌', L'┘',   L'、', L'・', L'ヲ', L'ァ', L'ィ', L'ゥ',L'ェ',L'ォ',   L'ャ', L'ュ', L'ョ', L'ツ', /* 0xA0 */
+/* 0xB0 */	L'ー', L'ア',L'イ',L'ウ',    L'エ', L'オ',L'カ',L'キ',   L'ク', L'ケ', L'コ', L'サ',L'シ',L'ス',L'セ', L'ソ',  /* 0xB0 */
+/* 0xC0 */	L'タ', L'チ',L'ツ',L'テ',    L'ト', L'ナ',L'二', L'ヌ',  L'ネ', L'ノ', L'ハ', L'ヒ',L'フ',L'へ',L'ホ', L'マ', /* 0xC0 */
+/* 0xD0 */	L'ミ', L'ム',L'メ',L'モ',    L'ヤ', L'ユ',L'ヨ', L'ラ',  L'リ', L'ル', L'レ', L'ロ', L'ワ',L'ン',L'゛', L'゜',  /* 0xD0 */
+/* 0xE0 */	L'↑', L'↓', L'?', L'?',    L'?', L'日', L'月', L'?',    L'?', L'?', L'?', L'?',    L'?', L'?', L'?', L'?', /* 0xE0 */
+/* 0xF0 */	L'?', L'?', L'?', L'?',    L'?', L'?', L'?', L'?',    L'?', L'?', L'?', L'?',    L'?', L'?', L'?', L'?', /* 0xF0 */
 };
 
 
@@ -216,6 +223,30 @@ CEXIJVS::CEXIJVS()
 
   m_JVS_offset = 0;
   memset(m_JVS_data, 0, sizeof(m_JVS_data));
+
+  // Initialize JVS State memory mapping
+#ifdef _WIN32
+  if (!g_jvs_file_mapping)
+  {
+    g_jvs_file_mapping = CreateFileMappingA(INVALID_HANDLE_VALUE,  // Use paging file
+                                            nullptr,               // Default security
+                                            PAGE_READWRITE,        // Read/write access
+                                            0,   // Maximum object size (high-order DWORD)
+                                            64,  // Maximum object size (low-order DWORD) - 64 bytes
+                                            "TeknoParrot_JvsState"  // Name of mapping object
+    );
+
+    if (g_jvs_file_mapping)
+    {
+      g_jvs_view_ptr = MapViewOfFile(g_jvs_file_mapping,   // Handle to map object
+                                     FILE_MAP_ALL_ACCESS,  // Read/write permission
+                                     0,                    // High-order 32 bits of file offset
+                                     0,                    // Low-order 32 bits of file offset
+                                     64                    // Number of bytes to map
+      );
+    }
+  }
+#endif
 }
 
 u32 CEXIJVS::Read(RVAMemoryMap address, u32 size)
@@ -378,72 +409,184 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
             else
               msg.addData((u32)0x00);
 
+            // Read digital button control from shared memory (StateView[8] - DWORD)
+            u32 control = 0;
+#ifdef _WIN32
+            if (g_jvs_view_ptr)
+            {
+              control = *reinterpret_cast<u32*>(static_cast<u8*>(g_jvs_view_ptr) + 8);
+            }
+#endif
+
+            /*
+            Full 32-bit DWORD mapping:
+            0x01:       Coin (shared)
+            0x02:       Player 1 Start
+            0x04:       Player 1 Button1 (Primary: Light Punch/A)
+            0x08:       Player 2 Start
+            0x10:       Player 2 Button1 (Primary: Light Punch/A)
+            0x20:       Player 1 Button2 (Secondary: Medium Punch/B)
+            0x40:       Player 1 Service
+            0x80:       Player 2 Button2 (Secondary: Medium Punch/B)
+            0x100:      Player 2 Service
+            0x200:      Player 1 Button3 (Tertiary: Heavy Punch/X)
+            0x400:      Player 1 Left
+            0x800:      Player 1 Up
+            0x1000:     Player 1 Right
+            0x2000:     Player 1 Down
+            0x4000:     Player 2 Button3 (Tertiary: Heavy Punch/X)
+            0x8000:     Player 2 Left
+            0x10000:    Player 2 Up
+            0x20000:    Player 2 Right
+            0x40000:    Player 2 Down
+            0x80000:    Player 1 Button4 (Light Kick/Y)
+            0x100000:   Player 1 Button5 (Medium Kick/L)
+            0x200000:   Player 1 Button6 (Heavy Kick/R)
+            0x400000:   Player 1 Button7 (Partner/Z)
+            0x800000:   Player 2 Button4 (Light Kick/Y)
+            0x1000000:  Player 2 Button5 (Medium Kick/L)
+            0x2000000:  Player 2 Button6 (Heavy Kick/R)
+            0x4000000:  Player 2 Button7 (Partner/Z)
+            0x8000000:  Player 1 Button8 (Extra)
+            0x10000000: Player 1 Button9 (Extra)
+            0x20000000: Player 2 Button8 (Extra)
+            0x40000000: Player 2 Button9 (Extra)
+            0x80000000: Reserved
+            */
+
+            // Test button - check for coin input from shared memory only
+            if (control & 0x01)
+              msg.addData(0x80);
+            else
+              msg.addData((u32)0x00);
+
             for (int i = 0; i < player_count; ++i)
             {
               u8 player_data[3] = {0, 0, 0};
 
-              pad_status = Pad::GetStatus(i);
+              // Extract button states from shared memory based on player index
+              bool start_pressed = false;
+              bool service_pressed = false;
+              bool button1_pressed = false;  // Light Punch/A
+              bool button2_pressed = false;  // Medium Punch/B
+              bool button3_pressed = false;  // Heavy Punch/X
+              bool button4_pressed = false;  // Light Kick/Y
+              bool button5_pressed = false;  // Medium Kick/L
+              bool button6_pressed = false;  // Heavy Kick/R
+              bool button7_pressed = false;  // Partner/Z
+              bool left_pressed = false;
+              bool up_pressed = false;
+              bool right_pressed = false;
+              bool down_pressed = false;
+
+              if (i == 0)  // Player 1
+              {
+                start_pressed = (control & 0x02) != 0;
+                service_pressed = (control & 0x40) != 0;
+                button1_pressed = (control & 0x04) != 0;
+                button2_pressed = (control & 0x20) != 0;
+                button3_pressed = (control & 0x200) != 0;
+                button4_pressed = (control & 0x80000) != 0;
+                button5_pressed = (control & 0x100000) != 0;
+                button6_pressed = (control & 0x200000) != 0;
+                button7_pressed = (control & 0x400000) != 0;
+                left_pressed = (control & 0x400) != 0;
+                up_pressed = (control & 0x800) != 0;
+                right_pressed = (control & 0x1000) != 0;
+                down_pressed = (control & 0x2000) != 0;
+              }
+              else if (i == 1)  // Player 2
+              {
+                start_pressed = (control & 0x08) != 0;
+                service_pressed = (control & 0x100) != 0;
+                button1_pressed = (control & 0x10) != 0;
+                button2_pressed = (control & 0x80) != 0;
+                button3_pressed = (control & 0x4000) != 0;
+                button4_pressed = (control & 0x800000) != 0;
+                button5_pressed = (control & 0x1000000) != 0;
+                button6_pressed = (control & 0x2000000) != 0;
+                button7_pressed = (control & 0x4000000) != 0;
+                left_pressed = (control & 0x8000) != 0;
+                up_pressed = (control & 0x10000) != 0;
+                right_pressed = (control & 0x20000) != 0;
+                down_pressed = (control & 0x40000) != 0;
+              }
+
+              // Controller configuration for Tatsunoko vs Capcom (default for Wii)
               // Start
-              if (pad_status.button & PAD_BUTTON_START)
+              if (start_pressed)
                 player_data[0] |= 0x80;
               // Service button
-              if (pad_status.substickY > pad_status.C_STICK_CENTER_Y)
+              if (service_pressed)
                 player_data[0] |= 0x40;
-              // Shot 1
-              if (pad_status.button & PAD_BUTTON_A)
+              // Light Punch (A)
+              if (button1_pressed)
                 player_data[0] |= 0x02;
-              // Shot 2
-              if (pad_status.button & PAD_BUTTON_B)
+              // Medium Punch (B)
+              if (button2_pressed)
                 player_data[0] |= 0x01;
-              // Shot 3
-              if (pad_status.button & PAD_BUTTON_X)
+              // Heavy Punch (X)
+              if (button3_pressed)
                 player_data[1] |= 0x80;
-              // Shot 4
-              if (pad_status.button & PAD_BUTTON_Y)
+              // Light Kick (Y)
+              if (button4_pressed)
                 player_data[1] |= 0x40;
-              // Shot 5
-              if (pad_status.button & PAD_TRIGGER_L)
+              // Medium Kick (L)
+              if (button5_pressed)
                 player_data[1] |= 0x20;
-              // Shot 6
-              if (pad_status.button & PAD_TRIGGER_R)
+              // Heavy Kick (R)
+              if (button6_pressed)
                 player_data[1] |= 0x10;
               // Left
-              if ((pad_status.stickX < (pad_status.MAIN_STICK_CENTER_X - stick_deadzone)) ||
-                  (pad_status.button & PAD_BUTTON_LEFT))
+              if (left_pressed)
                 player_data[0] |= 0x08;
               // Up
-              if ((pad_status.stickY > (pad_status.MAIN_STICK_CENTER_Y + stick_deadzone)) ||
-                  (pad_status.button & PAD_BUTTON_UP))
+              if (up_pressed)
                 player_data[0] |= 0x20;
               // Right
-              if ((pad_status.stickX > (pad_status.MAIN_STICK_CENTER_X + stick_deadzone)) ||
-                  (pad_status.button & PAD_BUTTON_RIGHT))
+              if (right_pressed)
                 player_data[0] |= 0x04;
               // Down
-              if ((pad_status.stickY < (pad_status.MAIN_STICK_CENTER_Y - stick_deadzone)) ||
-                  (pad_status.button & PAD_BUTTON_DOWN))
+              if (down_pressed)
                 player_data[0] |= 0x10;
 
               for (int j = 0; j < player_byte_count; ++j)
                 msg.addData(player_data[j]);
             }
+            break;
           }
-          break;
           case JVSIOCommands::CoinInput:
           {
             int slots = *jvs_io++;
             msg.addData(1);
+
+            // Read coin button state from shared memory (StateView[32] - separate coin offset)
+            u32 coin_state = 0;
+#ifdef _WIN32
+            if (g_jvs_view_ptr)
+            {
+              coin_state = *reinterpret_cast<u32*>(static_cast<u8*>(g_jvs_view_ptr) + 32);
+            }
+#endif
+
+            // Check coin button state from shared memory (direct value, not bit flag)
+            bool coin_pressed_now = (coin_state != 0);
+
             for (int i = 0; i < slots; i++)
             {
-              pad_status = Pad::GetStatus(i);
-              if ((pad_status.button & PAD_TRIGGER_L) && !m_coin_pressed[i])
+              // Increment coin counter on rising edge (when coin button goes from not pressed to
+              // pressed) For multiple slots, we use the same coin input for all slots
+              if (coin_pressed_now && !g_coin_pressed_prev_wii)
               {
                 m_coin[i]++;
               }
-              m_coin_pressed[i] = pad_status.button & PAD_TRIGGER_L;
               msg.addData((m_coin[i] >> 8) & 0x3f);
               msg.addData(m_coin[i] & 0xff);
             }
+
+            // Update previous state for next frame
+            g_coin_pressed_prev_wii = coin_pressed_now;
+
             INFO_LOG_FMT(EXPANSIONINTERFACE, "RVA-JVS-IO: Command 21, CoinInput Slots:{}", slots);
             break;
           }
