@@ -4,8 +4,8 @@ IDI_ICON1 ICON "..\\..\\..\\Installer\\Dolphin.ico"
 "dolphin" ICON "..\\..\\..\\Installer\\Dolphin.ico"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,1
- PRODUCTVERSION 1,0,0,1
+FILEVERSION 1,0,0,1
+PRODUCTVERSION 1,0,0,1
  FILEFLAGSMASK 0x3fL
  FILEFLAGS 0x0L
  FILEOS 0x40004L
@@ -18,11 +18,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Your Company Name"
             VALUE "FileDescription", "Dolphin NoGUI Application"
-            VALUE "FileVersion", "1.0.0.0"
+VALUE "FileVersion", "1.0.0.0"
             VALUE "InternalName", "DolphinNoGUI"
             VALUE "OriginalFilename", "DolphinNoGUI.exe"
             VALUE "ProductName", "Dolphin Emulator"
-            VALUE "ProductVersion", "1.0.0.0"
+VALUE "ProductVersion", "1.0.0.0"
         END
     END
     BLOCK "VarFileInfo"
