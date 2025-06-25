@@ -925,6 +925,7 @@ u32 ExecuteCommand(std::array<u32, 3>& DICMDBUF, u32 address, u32 length)
         fd_set* readfds = nullptr;
         fd_set* writefds = nullptr;
         fd_set* exceptfds = nullptr;
+        timeval* timeout = nullptr;
 
         // Only one of 3, 4, 5 is ever set alongside 6
         if (media_buffer_32[3] && media_buffer_32[6])
@@ -933,6 +934,9 @@ u32 ExecuteCommand(std::array<u32, 3>& DICMDBUF, u32 address, u32 length)
           readfds = (fd_set*)(s_network_command_buffer + ROffset);
           FD_ZERO(readfds);
           FD_SET(nfds, readfds);
+
+          timeout =
+              (timeval*)(s_network_command_buffer + media_buffer_32[3] - NetworkCommandAddress2);
         }
         else if (media_buffer_32[4] && media_buffer_32[6])
         {
@@ -940,6 +944,9 @@ u32 ExecuteCommand(std::array<u32, 3>& DICMDBUF, u32 address, u32 length)
           writefds = (fd_set*)(s_network_command_buffer + WOffset);
           FD_ZERO(writefds);
           FD_SET(nfds, writefds);
+
+          timeout =
+              (timeval*)(s_network_command_buffer + media_buffer_32[4] - NetworkCommandAddress2);
         }
         else if (media_buffer_32[5] && media_buffer_32[6])
         {
@@ -947,13 +954,12 @@ u32 ExecuteCommand(std::array<u32, 3>& DICMDBUF, u32 address, u32 length)
           exceptfds = (fd_set*)(s_network_command_buffer + EOffset);
           FD_ZERO(exceptfds);
           FD_SET(nfds, exceptfds);
+
+          timeout =
+              (timeval*)(s_network_command_buffer + media_buffer_32[5] - NetworkCommandAddress2);
         }
 
-        timeval timeout;
-        timeout.tv_sec = s_timeouts[0] / 1000;
-        timeout.tv_usec = 0;
-
-        int ret = select(nfds + 1, readfds, writefds, exceptfds, &timeout);
+        int ret = select(nfds + 1, readfds, writefds, exceptfds, timeout);
 
         int err = WSAGetLastError();
 
@@ -1655,6 +1661,17 @@ u32 ExecuteCommand(std::array<u32, 3>& DICMDBUF, u32 address, u32 length)
           timeout =
               (timeval*)(s_network_command_buffer + media_buffer_in_32[5] - NetworkCommandAddress);
         }
+
+        /*
+          BUG?: F-Zero AX Monster calls select with a two second timeout for unknown reasons, which
+          slows down the game a lot
+        */
+        if (AMMediaboard::GetGameType() == FZeroAXMonster)
+        {
+          timeout->tv_sec = 0;
+          timeout->tv_usec = 30;
+        }
+
 
         int ret = select(nfds + 1, readfds, writefds, exceptfds, timeout);
 
