@@ -399,16 +399,6 @@ void CEXIJVS::Write(RVAMemoryMap address, u32 value)
 
             msg.addData(1);
 
-            pad_status = Pad::GetStatus(0);
-
-            static u8 stick_deadzone = 34;
-
-            // Test button
-            if (pad_status.substickX > pad_status.C_STICK_CENTER_X)
-              msg.addData(0x80);
-            else
-              msg.addData((u32)0x00);
-
             // Read digital button control from shared memory (StateView[8] - DWORD)
             u32 control = 0;
 #ifdef _WIN32
